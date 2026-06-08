@@ -847,9 +847,54 @@
       </div>
 
       <div id="page-transactions" class="page">
-        <div class="placeholder">
-          <h2>Transactions</h2>
-          <p>Transactions content</p>
+
+        <!-- Metric cards -->
+        <div class="metric-row" style="margin-bottom:24px">
+          <div class="metric-card">
+            <div class="mc-label">Total Order Value</div>
+            <div class="mc-value" id="tx-total-value">—</div>
+          </div>
+          <div class="metric-card amber">
+            <div class="mc-label">Unpaid Amount</div>
+            <div class="mc-value" id="tx-unpaid-value">—</div>
+          </div>
+          <div class="metric-card">
+            <div class="mc-label">Paid</div>
+            <div class="mc-value" id="tx-paid-value">—</div>
+          </div>
+          <div class="metric-card">
+            <div class="mc-label">Groups Active</div>
+            <div class="mc-value" id="tx-groups">—</div>
+          </div>
+        </div>
+
+        <!-- Transaction log -->
+        <div class="card">
+          <div class="card-header">
+            <h3>Transaction Log</h3>
+            <span id="tx-count-label"></span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th style="width:4px;padding:0"></th>
+                <th>Order ID</th>
+                <th>Buyer</th>
+                <th>Group</th>
+                <th>Items</th>
+                <th>Amount</th>
+                <th>Payment</th>
+              </tr>
+            </thead>
+            <tbody id="tx-tbody"></tbody>
+          </table>
+          <div class="card-footer">
+            <button class="btn btn-primary" onclick="txDraftReminders()">Draft payment reminders</button>
+            <button class="btn btn-secondary" onclick="txExportStatement()">Export statement</button>
+          </div>
+          <div class="data-footer">
+            <span class="warn-tag">paid_at not in CSV — add to backend export for full transaction timestamps</span>
+          </div>
         </div>
       </div>
     </div>
@@ -1081,6 +1126,64 @@
       URL.revokeObjectURL(a.href);
     }
 
+    // ── Transactions ──────────────────────────────────────────────
+    function renderTransactions() {
+      const total   = ORDERS.reduce((s, o) => s + (parseFloat(o.subtotal) || 0), 0);
+      const unpaid  = ORDERS.filter(o => o.payment_status === 'unpaid')
+                            .reduce((s, o) => s + (parseFloat(o.subtotal) || 0), 0);
+      const paid    = ORDERS.filter(o => o.payment_status === 'paid')
+                            .reduce((s, o) => s + (parseFloat(o.subtotal) || 0), 0);
+      const groups  = new Set(ORDERS.map(o => o.group_buy_id).filter(Boolean)).size;
+
+      document.getElementById('tx-total-value').textContent = '$' + total.toFixed(2);
+      document.getElementById('tx-unpaid-value').textContent = '$' + unpaid.toFixed(2);
+      document.getElementById('tx-paid-value').textContent = '$' + paid.toFixed(2);
+      document.getElementById('tx-groups').textContent = groups;
+      document.getElementById('tx-count-label').textContent = ORDERS.length + ' entries';
+
+      document.getElementById('tx-tbody').innerHTML = ORDERS.map(o => {
+        const isPaid   = o.payment_status === 'paid';
+        const accent   = isPaid ? 'var(--primary)' : '#D97706';
+        const shortId  = (o.order_id || '').slice(-6);
+        const items    = o.items || '—';
+        const amount   = '$' + parseFloat(o.subtotal || 0).toFixed(2);
+        return `<tr>
+          <td style="width:4px;padding:0;background:${accent}"></td>
+          <td class="order-id-cell">${shortId}</td>
+          <td>${o.buyer_name || '—'}</td>
+          <td>${o.group_buy_id || '—'}</td>
+          <td class="cell-items" title="${items}">${items}</td>
+          <td style="font-weight:600">${amount}</td>
+          <td>${paymentPill(o.payment_status)}</td>
+        </tr>`;
+      }).join('') || `<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:24px">No transactions</td></tr>`;
+    }
+
+    function txExportStatement() {
+      const cols  = ['order_id', 'buyer_name', 'group_buy_id', 'items', 'subtotal', 'payment_status', 'created_at'];
+      const lines = [cols.join(',')];
+      ORDERS.forEach(o => lines.push(cols.map(c => JSON.stringify(o[c] ?? '')).join(',')));
+      const blob  = new Blob([lines.join('\n')], { type: 'text/csv' });
+      const a     = document.createElement('a');
+      a.href      = URL.createObjectURL(blob);
+      a.download  = 'transaction-statement.csv';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    function txDraftReminders() {
+      const unpaidBuyers = ORDERS
+        .filter(o => o.payment_status === 'unpaid')
+        .map(o => `${o.buyer_name} ($${parseFloat(o.subtotal || 0).toFixed(2)})`)
+        .join(', ');
+      const prompt = `Draft a short, friendly WhatsApp payment reminder for these unpaid buyers: ${unpaidBuyers || 'none'}. Keep it under 3 sentences.`;
+      if (typeof sendPrompt === 'function') {
+        sendPrompt(prompt);
+      } else {
+        alert('sendPrompt not available.\n\nSuggested prompt:\n' + prompt);
+      }
+    }
+
     Papa.parse('../../shared/mock-data/orders.csv', {
       download: true,
       header: true,
@@ -1094,6 +1197,7 @@
         updateTopbarMeta();
         renderDashboard();
         renderOrderManagement();
+        renderTransactions();
         document.getElementById('loading-overlay').classList.add('hidden');
       },
       error(err) {
