@@ -1,19 +1,21 @@
-# Database
+# Database Prototype
 
-Use this folder for database schema, migrations, seed data, or spreadsheet templates.
+This folder contains the prototype database files.
 
-## Main Tables
+| File | Purpose |
+|---|---|
+| `seed-database.json` | Full JSON seed database with group buy, products, and empty order tables |
+| `schema.sql` | PostgreSQL/Supabase-style schema |
+| `group_buys.csv` | Sample group-buy round |
+| `products.csv` | Sample grocery catalogue |
+| `buyers.csv` | Empty buyer table template |
+| `orders.csv` | Empty order table template |
+| `order_items.csv` | Empty order item table template |
+| `payments.csv` | Empty payment table template |
+| `fulfillment.csv` | Empty fulfillment table template |
+
+## MVP Data Flow
 
 ```txt
-group_buys
-products
-group_buy_products
-buyers
-orders
-order_items
-payments
-fulfillment
-audit_logs
+Customer order page → Buyer record → Order record → Order items → Payment placeholder → Fulfillment placeholder → Dashboard consolidation
 ```
-
-Refer to `docs/database-schema.md` for full field definitions.
