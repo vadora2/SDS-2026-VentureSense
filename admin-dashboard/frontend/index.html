@@ -1,0 +1,1107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VentureSense Admin</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --primary:       #1D9E75;
+      --primary-dark:  #157A5A;
+      --primary-light: #E8F7F2;
+      --sidebar-bg:    #0F6B4F;
+      --sidebar-text:  #C8EDE2;
+      --sidebar-w:     220px;
+      --text:          #1A1A1A;
+      --text-muted:    #6B7280;
+      --border:        #E5E7EB;
+      --surface:       #F9FAFB;
+      --white:         #FFFFFF;
+      --error:         #DC2626;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 14px;
+      color: var(--text);
+      background: var(--surface);
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ── Sidebar ── */
+    #sidebar {
+      width: var(--sidebar-w);
+      background: var(--sidebar-bg);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      height: 100vh;
+    }
+
+    #sidebar-brand {
+      padding: 24px 20px 20px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+
+    #sidebar-brand span {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--white);
+      letter-spacing: 0.02em;
+    }
+
+    #sidebar-brand small {
+      display: block;
+      font-size: 11px;
+      color: var(--sidebar-text);
+      margin-top: 2px;
+    }
+
+    nav {
+      padding: 12px 0;
+      flex: 1;
+    }
+
+    nav a {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 20px;
+      color: var(--sidebar-text);
+      text-decoration: none;
+      font-size: 13.5px;
+      font-weight: 500;
+      border-left: 3px solid transparent;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+      cursor: pointer;
+    }
+
+    nav a:hover {
+      background: rgba(255,255,255,0.07);
+      color: var(--white);
+    }
+
+    nav a.active {
+      background: rgba(255,255,255,0.12);
+      color: var(--white);
+      border-left-color: #5EDCB0;
+    }
+
+    nav a svg {
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+      opacity: 0.8;
+    }
+
+    nav a.active svg { opacity: 1; }
+
+    /* ── Main area ── */
+    #main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    #topbar {
+      background: var(--white);
+      border-bottom: 1px solid var(--border);
+      padding: 0 28px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+
+    #topbar-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    #topbar-meta {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    #content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 28px;
+    }
+
+    /* ── Pages ── */
+    .page { display: none; }
+    .page.active { display: block; }
+
+    .placeholder {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 48px 32px;
+      text-align: center;
+      color: var(--text-muted);
+    }
+
+    .placeholder h2 {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+
+    .placeholder p { font-size: 13px; }
+
+    /* ── Loading / Error states ── */
+    #loading-overlay {
+      position: fixed;
+      inset: 0;
+      background: var(--white);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      z-index: 100;
+    }
+
+    #loading-overlay.hidden { display: none; }
+
+    .spinner {
+      width: 36px;
+      height: 36px;
+      border: 3px solid var(--border);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #loading-overlay p {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    #error-banner {
+      display: none;
+      background: #FEF2F2;
+      border: 1px solid #FECACA;
+      border-radius: 8px;
+      padding: 14px 18px;
+      color: var(--error);
+      font-size: 13px;
+      margin-bottom: 20px;
+    }
+
+    #error-banner.visible { display: flex; align-items: center; gap: 10px; }
+
+    #error-banner svg { flex-shrink: 0; }
+
+    /* ── Dashboard ── */
+    .metric-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .metric-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 18px 20px;
+    }
+
+    .metric-card .mc-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .metric-card .mc-value {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1;
+    }
+
+    .metric-card .mc-sub {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .metric-card.amber .mc-value { color: #B45309; }
+    .metric-card.amber .mc-sub   { color: #D97706; font-weight: 500; }
+
+    /* ── Cadence tracker ── */
+    .cadence-wrap {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px 24px;
+      margin-bottom: 24px;
+    }
+
+    .cadence-wrap h3 {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      margin-bottom: 20px;
+    }
+
+    .cadence-steps {
+      display: flex;
+      align-items: center;
+    }
+
+    .cadence-step {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .cadence-step .cs-dot {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+    }
+
+    .cadence-step.done .cs-dot {
+      background: var(--primary);
+      color: var(--white);
+    }
+
+    .cadence-step.active .cs-dot {
+      background: var(--white);
+      border: 2px solid var(--primary);
+      color: var(--primary);
+      font-weight: 700;
+    }
+
+    .cadence-step.pending .cs-dot {
+      background: var(--white);
+      border: 2px dashed var(--border);
+      color: var(--text-muted);
+    }
+
+    .cadence-step .cs-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    .cadence-step.done .cs-label   { color: var(--primary); font-weight: 600; }
+    .cadence-step.active .cs-label { color: var(--primary); font-weight: 600; }
+
+    .cadence-line {
+      flex: 1;
+      height: 2px;
+      background: var(--border);
+      margin: 0 4px;
+      margin-bottom: 28px;
+    }
+
+    .cadence-line.done { background: var(--primary); }
+
+    /* ── Two-col layout ── */
+    .dash-cols {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      gap: 20px;
+      align-items: start;
+    }
+
+    /* ── Orders table card ── */
+    .card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .card-header h3 {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .card-header span {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    thead th {
+      padding: 9px 14px;
+      text-align: left;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+
+    tbody tr { border-bottom: 1px solid var(--border); }
+    tbody tr:last-child { border-bottom: none; }
+
+    tbody td {
+      padding: 10px 14px;
+      color: var(--text);
+      vertical-align: middle;
+    }
+
+    .cell-items {
+      max-width: 180px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: var(--text-muted);
+      font-size: 12px;
+    }
+
+    .pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .pill-amber  { background: #FEF3C7; color: #92400E; }
+    .pill-green  { background: #D1FAE5; color: #065F46; }
+    .pill-gray   { background: #F3F4F6; color: #6B7280; }
+    .pill-blue   { background: #DBEAFE; color: #1E40AF; }
+
+    .card-footer {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 14px;
+      border-top: 1px solid var(--border);
+    }
+
+    .btn {
+      padding: 7px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: background 0.15s;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: var(--white);
+    }
+
+    .btn-primary:hover { background: var(--primary-dark); }
+
+    .btn-secondary {
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .btn-secondary:hover { background: var(--border); }
+
+    .data-footer {
+      font-size: 11px;
+      color: var(--text-muted);
+      padding: 8px 14px 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .data-footer .warn-tag {
+      background: #FEF3C7;
+      color: #92400E;
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-size: 10px;
+      font-weight: 600;
+    }
+
+    /* ── Right column cards ── */
+    .right-col { display: flex; flex-direction: column; gap: 16px; }
+
+    .sku-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+    }
+
+    .sku-row:last-child { border-bottom: none; }
+
+    .sku-name { flex: 1; color: var(--text); font-weight: 500; }
+
+    .sku-bar-wrap {
+      width: 80px;
+      height: 6px;
+      background: var(--border);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .sku-bar { height: 100%; background: var(--primary); border-radius: 3px; }
+
+    .sku-count { font-size: 11px; color: var(--text-muted); min-width: 24px; text-align: right; }
+
+    .group-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+    }
+
+    .group-row:last-child { border-bottom: none; }
+
+    .group-id { font-weight: 600; color: var(--text); flex: 1; }
+
+    .group-meta { color: var(--text-muted); font-size: 11px; }
+
+    /* ── Order Management page ── */
+    .om-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+
+    .om-toolbar-left {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .om-toolbar-left strong { color: var(--text); }
+
+    .filter-btn-group {
+      display: flex;
+      gap: 6px;
+    }
+
+    .filter-btn {
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: var(--white);
+      color: var(--text-muted);
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+
+    .filter-btn.active {
+      background: var(--primary-light);
+      color: var(--primary-dark);
+      border-color: var(--primary);
+    }
+
+    .avatar {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: var(--primary-light);
+      color: var(--primary-dark);
+      font-size: 10px;
+      font-weight: 700;
+      flex-shrink: 0;
+      margin-right: 7px;
+      text-transform: uppercase;
+    }
+
+    .buyer-cell { display: flex; align-items: center; }
+
+    .order-id-cell {
+      font-family: ui-monospace, "Cascadia Code", "Fira Code", monospace;
+      font-size: 11px;
+      color: var(--text-muted);
+      letter-spacing: 0.04em;
+    }
+
+    /* Status summary rows in right sidebar */
+    .status-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+    }
+
+    .status-row:last-child { border-bottom: none; }
+
+    .status-row-label { color: var(--text-muted); }
+
+    .status-row-count {
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .section-divider {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      padding: 8px 16px 4px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Loading overlay -->
+  <div id="loading-overlay">
+    <div class="spinner"></div>
+    <p>Loading order data…</p>
+  </div>
+
+  <!-- Sidebar -->
+  <aside id="sidebar">
+    <div id="sidebar-brand">
+      <span>VentureSense</span>
+      <small>Admin Dashboard</small>
+    </div>
+    <nav>
+      <a href="#" class="nav-link active" data-page="dashboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+          <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+        </svg>
+        Dashboard
+      </a>
+      <a href="#" class="nav-link" data-page="orders">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
+          <rect x="9" y="3" width="6" height="4" rx="1"/>
+          <line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/>
+        </svg>
+        Order Management
+      </a>
+      <a href="#" class="nav-link" data-page="coupons">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/>
+          <circle cx="7" cy="7" r="1" fill="currentColor" stroke="none"/>
+        </svg>
+        Coupon Codes
+      </a>
+      <a href="#" class="nav-link" data-page="transactions">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="12" y1="1" x2="12" y2="23"/>
+          <path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
+        </svg>
+        Transactions
+      </a>
+    </nav>
+  </aside>
+
+  <!-- Main -->
+  <div id="main">
+    <div id="topbar">
+      <span id="topbar-title">Dashboard</span>
+      <span id="topbar-meta"></span>
+    </div>
+
+    <div id="content">
+      <!-- Error banner -->
+      <div id="error-banner">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r="0.5" fill="currentColor"/>
+        </svg>
+        <span id="error-message">Failed to load order data.</span>
+      </div>
+
+      <!-- Pages -->
+      <div id="page-dashboard" class="page active">
+
+        <!-- 1. Metric cards -->
+        <div class="metric-row">
+          <div class="metric-card">
+            <div class="mc-label">Total Orders</div>
+            <div class="mc-value" id="mc-total">—</div>
+          </div>
+          <div class="metric-card">
+            <div class="mc-label">Unpaid</div>
+            <div class="mc-value" id="mc-unpaid">—</div>
+          </div>
+          <div class="metric-card">
+            <div class="mc-label">Total Value</div>
+            <div class="mc-value" id="mc-value">—</div>
+          </div>
+          <div class="metric-card amber">
+            <div class="mc-label">Deadline</div>
+            <div class="mc-value">Mon 9PM</div>
+            <div class="mc-sub">6 hrs remaining</div>
+          </div>
+        </div>
+
+        <!-- 2. Weekly cadence tracker -->
+        <div class="cadence-wrap">
+          <h3>Weekly Cadence</h3>
+          <div class="cadence-steps">
+            <div class="cadence-step done">
+              <div class="cs-dot">✓</div>
+              <div class="cs-label">Order window</div>
+            </div>
+            <div class="cadence-line done"></div>
+            <div class="cadence-step active">
+              <div class="cs-dot">2</div>
+              <div class="cs-label">Collate orders</div>
+            </div>
+            <div class="cadence-line"></div>
+            <div class="cadence-step pending">
+              <div class="cs-dot">3</div>
+              <div class="cs-label">Issue quotation</div>
+            </div>
+            <div class="cadence-line"></div>
+            <div class="cadence-step pending">
+              <div class="cs-dot">4</div>
+              <div class="cs-label">Payment</div>
+            </div>
+            <div class="cadence-line"></div>
+            <div class="cadence-step pending">
+              <div class="cs-dot">5</div>
+              <div class="cs-label">Supplier order</div>
+            </div>
+            <div class="cadence-line"></div>
+            <div class="cadence-step pending">
+              <div class="cs-dot">6</div>
+              <div class="cs-label">Delivery</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. Two-column layout -->
+        <div class="dash-cols">
+
+          <!-- Left: orders table -->
+          <div>
+            <div class="card">
+              <div class="card-header">
+                <h3>Orders Summary</h3>
+                <span id="orders-count-label"></span>
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Buyer</th>
+                    <th>Items</th>
+                    <th>Subtotal</th>
+                    <th>Payment</th>
+                    <th>Fulfillment</th>
+                  </tr>
+                </thead>
+                <tbody id="orders-tbody"></tbody>
+              </table>
+              <div class="card-footer">
+                <button class="btn btn-primary">Generate quotation</button>
+                <button class="btn btn-secondary">Export</button>
+              </div>
+              <!-- 4. Data source footer -->
+              <div class="data-footer">
+                venture-sense-orders-export-2.csv · loaded live
+                <span class="warn-tag">delivery_address missing</span>
+                <span class="warn-tag">paid_at missing</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: SKU summary + Group summary -->
+          <div class="right-col">
+            <div class="card">
+              <div class="card-header">
+                <h3>SKU Summary</h3>
+              </div>
+              <div id="sku-list"></div>
+            </div>
+            <div class="card">
+              <div class="card-header">
+                <h3>Group Summary</h3>
+              </div>
+              <div id="group-list"></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div id="page-orders" class="page">
+        <div class="dash-cols">
+
+          <!-- Left: full-width orders table -->
+          <div>
+            <!-- Toolbar -->
+            <div class="om-toolbar">
+              <div class="om-toolbar-left">
+                Showing <strong id="om-count">—</strong> orders
+              </div>
+              <div class="filter-btn-group">
+                <button class="filter-btn active" id="om-filter-all" onclick="omSetFilter('all')">All</button>
+                <button class="filter-btn" id="om-filter-unpaid" onclick="omSetFilter('unpaid')">Unpaid only</button>
+              </div>
+            </div>
+
+            <!-- Table -->
+            <div class="card">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Order ID</th>
+                    <th>Group</th>
+                    <th>Buyer</th>
+                    <th>Phone</th>
+                    <th>Items</th>
+                    <th>Subtotal</th>
+                    <th>Payment</th>
+                    <th>Fulfillment</th>
+                  </tr>
+                </thead>
+                <tbody id="om-tbody"></tbody>
+              </table>
+              <div class="card-footer">
+                <button class="btn btn-primary" onclick="omExportCSV()">Export CSV</button>
+              </div>
+              <div class="data-footer">
+                <span class="warn-tag">delivery_address not in CSV — add to backend export</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right sidebar -->
+          <div class="right-col">
+
+            <!-- Group breakdown -->
+            <div class="card">
+              <div class="card-header"><h3>Group Breakdown</h3></div>
+              <div id="om-group-list"></div>
+            </div>
+
+            <!-- Status summary -->
+            <div class="card">
+              <div class="card-header"><h3>Status Summary</h3></div>
+              <div class="section-divider">Payment</div>
+              <div id="om-payment-summary"></div>
+              <div class="section-divider">Fulfillment</div>
+              <div id="om-fulfillment-summary"></div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <div id="page-coupons" class="page">
+        <div class="placeholder">
+          <h2>Coupon Codes</h2>
+          <p>Coupon codes content</p>
+        </div>
+      </div>
+
+      <div id="page-transactions" class="page">
+        <div class="placeholder">
+          <h2>Transactions</h2>
+          <p>Transactions content</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ── Global state ──────────────────────────────────────────────
+    let ORDERS = [];
+
+    // ── Page titles ───────────────────────────────────────────────
+    const PAGE_TITLES = {
+      dashboard:    'Dashboard',
+      orders:       'Order Management',
+      coupons:      'Coupon Codes',
+      transactions: 'Transactions',
+    };
+
+    // ── Routing ───────────────────────────────────────────────────
+    function navigate(pageId) {
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.nav-link').forEach(a => a.classList.remove('active'));
+
+      const page = document.getElementById('page-' + pageId);
+      const link = document.querySelector(`.nav-link[data-page="${pageId}"]`);
+
+      if (page) page.classList.add('active');
+      if (link) link.classList.add('active');
+
+      document.getElementById('topbar-title').textContent = PAGE_TITLES[pageId] || pageId;
+    }
+
+    document.querySelectorAll('.nav-link').forEach(link => {
+      link.addEventListener('click', e => {
+        e.preventDefault();
+        navigate(link.dataset.page);
+      });
+    });
+
+    // ── CSV loading ───────────────────────────────────────────────
+    function showError(msg) {
+      const banner = document.getElementById('error-banner');
+      document.getElementById('error-message').textContent = msg;
+      banner.classList.add('visible');
+    }
+
+    function updateTopbarMeta() {
+      const el = document.getElementById('topbar-meta');
+      el.textContent = ORDERS.length + ' order' + (ORDERS.length !== 1 ? 's' : '') + ' loaded';
+    }
+
+    // ── Dashboard rendering ───────────────────────────────────────
+    function paymentPill(status) {
+      if (status === 'paid')         return `<span class="pill pill-green">paid</span>`;
+      if (status === 'payment_sent') return `<span class="pill pill-blue">payment sent</span>`;
+      if (status === 'refunded')     return `<span class="pill pill-gray">refunded</span>`;
+      return `<span class="pill pill-amber">unpaid</span>`;
+    }
+
+    function fulfillmentPill(status) {
+      if (status === 'packed')     return `<span class="pill pill-blue">packed</span>`;
+      if (status === 'collected')  return `<span class="pill pill-green">collected</span>`;
+      if (status === 'delivered')  return `<span class="pill pill-green">delivered</span>`;
+      return `<span class="pill pill-gray">not packed</span>`;
+    }
+
+    function parseSKUs(orders) {
+      const map = {};
+      orders.forEach(o => {
+        (o.items || '').split(';').forEach(seg => {
+          const m = seg.trim().match(/^(.+?)\s*x\s*(\d+)$/i);
+          if (!m) return;
+          const name = m[1].trim();
+          const qty  = parseInt(m[2], 10);
+          map[name]  = (map[name] || 0) + qty;
+        });
+      });
+      return Object.entries(map).sort((a, b) => b[1] - a[1]);
+    }
+
+    function renderDashboard() {
+      const total  = ORDERS.length;
+      const unpaid = ORDERS.filter(o => o.payment_status === 'unpaid').length;
+      const value  = ORDERS.reduce((sum, o) => sum + (parseFloat(o.subtotal) || 0), 0);
+
+      document.getElementById('mc-total').textContent  = total;
+      document.getElementById('mc-unpaid').textContent = unpaid;
+      document.getElementById('mc-value').textContent  = '$' + value.toFixed(2);
+      document.getElementById('orders-count-label').textContent = total + ' orders';
+
+      // Orders table
+      const tbody = document.getElementById('orders-tbody');
+      tbody.innerHTML = ORDERS.map(o => `
+        <tr>
+          <td>${o.buyer_name || '—'}</td>
+          <td class="cell-items" title="${o.items || ''}">${o.items || '—'}</td>
+          <td>$${parseFloat(o.subtotal || 0).toFixed(2)}</td>
+          <td>${paymentPill(o.payment_status)}</td>
+          <td>${fulfillmentPill(o.fulfillment_status)}</td>
+        </tr>
+      `).join('');
+
+      // SKU summary
+      const skus    = parseSKUs(ORDERS);
+      const maxQty  = skus.length ? skus[0][1] : 1;
+      document.getElementById('sku-list').innerHTML = skus.map(([name, qty]) => `
+        <div class="sku-row">
+          <div class="sku-name">${name}</div>
+          <div class="sku-bar-wrap"><div class="sku-bar" style="width:${Math.round(qty/maxQty*100)}%"></div></div>
+          <div class="sku-count">${qty}</div>
+        </div>
+      `).join('') || '<div class="sku-row"><div class="sku-name" style="color:var(--text-muted)">No data</div></div>';
+
+      // Group summary
+      const groups = {};
+      ORDERS.forEach(o => {
+        const gid = o.group_buy_id || 'unknown';
+        if (!groups[gid]) groups[gid] = { count: 0, total: 0 };
+        groups[gid].count++;
+        groups[gid].total += parseFloat(o.subtotal) || 0;
+      });
+      document.getElementById('group-list').innerHTML = Object.entries(groups).map(([gid, g]) => `
+        <div class="group-row">
+          <div class="group-id">${gid}</div>
+          <div class="group-meta">${g.count} orders · $${g.total.toFixed(2)}</div>
+          <span class="pill pill-amber">All unpaid</span>
+        </div>
+      `).join('') || '<div class="group-row"><div class="group-id" style="color:var(--text-muted)">No data</div></div>';
+    }
+
+    // ── Order Management ──────────────────────────────────────────
+    let omFilter = 'all';
+
+    function omFilteredOrders() {
+      return omFilter === 'unpaid'
+        ? ORDERS.filter(o => o.payment_status === 'unpaid')
+        : ORDERS;
+    }
+
+    function omSetFilter(f) {
+      omFilter = f;
+      document.getElementById('om-filter-all').classList.toggle('active', f === 'all');
+      document.getElementById('om-filter-unpaid').classList.toggle('active', f === 'unpaid');
+      omRenderTable();
+    }
+
+    function omInitials(name) {
+      return (name || '?').trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
+    }
+
+    function omRenderTable() {
+      const rows = omFilteredOrders();
+      document.getElementById('om-count').textContent = rows.length;
+
+      document.getElementById('om-tbody').innerHTML = rows.map(o => {
+        const shortId = (o.order_id || '').slice(-6);
+        const group   = o.group_buy_id || '—';
+        const initials = omInitials(o.buyer_name);
+        const items   = o.items || '—';
+        const subtotal = '$' + parseFloat(o.subtotal || 0).toFixed(2);
+        return `<tr>
+          <td class="order-id-cell">${shortId}</td>
+          <td>${group}</td>
+          <td class="buyer-cell"><span class="avatar">${initials}</span>${o.buyer_name || '—'}</td>
+          <td>${o.phone || '—'}</td>
+          <td class="cell-items" title="${items}">${items}</td>
+          <td>${subtotal}</td>
+          <td>${paymentPill(o.payment_status)}</td>
+          <td>${fulfillmentPill(o.fulfillment_status)}</td>
+        </tr>`;
+      }).join('') || `<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:24px">No orders</td></tr>`;
+    }
+
+    function omRenderSidebar() {
+      // Group breakdown (always from full ORDERS, not filtered)
+      const groups = {};
+      ORDERS.forEach(o => {
+        const gid = o.group_buy_id || 'unknown';
+        if (!groups[gid]) groups[gid] = { count: 0, total: 0 };
+        groups[gid].count++;
+        groups[gid].total += parseFloat(o.subtotal) || 0;
+      });
+      document.getElementById('om-group-list').innerHTML = Object.entries(groups).map(([gid, g]) => `
+        <div class="group-row">
+          <div class="group-id">${gid}</div>
+          <div class="group-meta">${g.count} orders · $${g.total.toFixed(2)}</div>
+        </div>
+      `).join('') || '<div class="group-row"><span style="color:var(--text-muted)">No data</span></div>';
+
+      // Payment status counts
+      const payStatuses = ['unpaid', 'payment_sent', 'paid', 'refunded'];
+      const payCounts   = {};
+      ORDERS.forEach(o => { payCounts[o.payment_status] = (payCounts[o.payment_status] || 0) + 1; });
+      document.getElementById('om-payment-summary').innerHTML = payStatuses.map(s => `
+        <div class="status-row">
+          <span class="status-row-label">${s.replace('_', ' ')}</span>
+          <span class="status-row-count">${payCounts[s] || 0}</span>
+        </div>
+      `).join('');
+
+      // Fulfillment status counts
+      const fulStatuses = ['not_packed', 'packed', 'collected', 'delivered'];
+      const fulCounts   = {};
+      ORDERS.forEach(o => { fulCounts[o.fulfillment_status] = (fulCounts[o.fulfillment_status] || 0) + 1; });
+      document.getElementById('om-fulfillment-summary').innerHTML = fulStatuses.map(s => `
+        <div class="status-row">
+          <span class="status-row-label">${s.replace('_', ' ')}</span>
+          <span class="status-row-count">${fulCounts[s] || 0}</span>
+        </div>
+      `).join('');
+    }
+
+    function renderOrderManagement() {
+      omRenderTable();
+      omRenderSidebar();
+    }
+
+    function omExportCSV() {
+      const rows  = omFilteredOrders();
+      const cols  = ['order_id', 'group_buy_id', 'buyer_name', 'phone', 'items', 'subtotal', 'payment_status', 'fulfillment_status', 'created_at'];
+      const lines = [cols.join(',')];
+      rows.forEach(o => {
+        lines.push(cols.map(c => JSON.stringify(o[c] ?? '')).join(','));
+      });
+      const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+      const a    = document.createElement('a');
+      a.href     = URL.createObjectURL(blob);
+      a.download = 'orders-export.csv';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    Papa.parse('../../shared/mock-data/orders.csv', {
+      download: true,
+      header: true,
+      skipEmptyLines: true,
+      complete(results) {
+        if (results.errors.length) {
+          console.warn('CSV parse warnings:', results.errors);
+        }
+        ORDERS = results.data;
+        console.log('ORDERS loaded:', ORDERS);
+        updateTopbarMeta();
+        renderDashboard();
+        renderOrderManagement();
+        document.getElementById('loading-overlay').classList.add('hidden');
+      },
+      error(err) {
+        console.error('CSV load error:', err);
+        showError('Could not load orders.csv — ' + err.message);
+        document.getElementById('loading-overlay').classList.add('hidden');
+      },
+    });
+  </script>
+</body>
+</html>
