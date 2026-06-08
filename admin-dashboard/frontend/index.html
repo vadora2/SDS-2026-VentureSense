@@ -840,10 +840,39 @@
       </div>
 
       <div id="page-coupons" class="page">
-        <div class="placeholder">
-          <h2>Coupon Codes</h2>
-          <p>Coupon codes content</p>
+
+        <!-- Page header -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+          <span style="font-size:15px;font-weight:600;color:var(--text)">Coupon Codes</span>
+          <span style="font-size:12px;color:var(--text-muted)">0 active codes · pending backend support</span>
         </div>
+
+        <!-- Empty state -->
+        <div class="card" style="padding:56px 32px;text-align:center;max-width:480px;margin:0 auto">
+          <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24"
+               fill="none" stroke="var(--text-muted)" stroke-width="1.5"
+               stroke-linecap="round" stroke-linejoin="round"
+               style="margin:0 auto 16px">
+            <!-- ti-ticket -->
+            <path d="M15 5l0 2"/><path d="M15 11l0 2"/><path d="M15 17l0 2"/>
+            <path d="M5 5h14a2 2 0 0 1 2 2v3a2 2 0 0 0 0 4v3a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-3a2 2 0 0 0 0 -4v-3a2 2 0 0 1 2 -2"/>
+          </svg>
+          <h2 style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:8px">No coupon data yet</h2>
+          <p style="font-size:13px;color:var(--text-muted);line-height:1.6;margin-bottom:20px">
+            The current CSV export does not include coupon fields. Ask the backend team to add
+            <code style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-size:12px;font-family:ui-monospace,'Cascadia Code','Fira Code',monospace">coupon_code</code>
+            and
+            <code style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-size:12px;font-family:ui-monospace,'Cascadia Code','Fira Code',monospace">discount_applied</code>
+            to the orders export.
+          </p>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:12px 16px;text-align:left;display:inline-block">
+            <code style="font-family:ui-monospace,'Cascadia Code','Fira Code',monospace;font-size:12px;color:var(--text-muted);line-height:1.8">
+              coupon_code<br>
+              discount_applied
+            </code>
+          </div>
+        </div>
+
       </div>
 
       <div id="page-transactions" class="page">
