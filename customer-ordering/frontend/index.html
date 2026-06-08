@@ -7,78 +7,102 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div class="app-shell">
-    <header class="hero">
-      <div>
-        <p class="eyebrow">Venture Sense Grocery Group Buy</p>
-        <h1 id="group-title">Loading group buy...</h1>
-        <p id="group-meta" class="hero-subtitle"></p>
-      </div>
-      <div class="hero-card">
-        <span class="status-pill">Prototype</span>
-        <p>Submit your order first. Final payment will be confirmed after stock review.</p>
-      </div>
-    </header>
+  <header>
+    <p class="kicker">Venture Sense Prototype</p>
+    <h1 id="page-title">Group Buy Ordering</h1>
+    <p id="page-subtitle">Customers enter a Group Buy Number + PIN. Admins can register new group buys here for demo testing.</p>
+  </header>
 
-    <main>
-      <section class="notice-card">
-        <strong>How it works</strong>
-        <p>Choose your groceries, enter your details, and submit a provisional order. Admin confirms the final amount after cutoff.</p>
+  <main class="layout">
+    <section class="main-panel">
+      <section id="access-screen" class="card">
+        <div class="split">
+          <div>
+            <p class="kicker">Customer access</p>
+            <h2>Join a group buy</h2>
+            <p>Enter the Group Buy Number and PIN from the WhatsApp announcement.</p>
+          </div>
+          <form id="access-form" class="form-card">
+            <label>Group Buy Number<input id="group-buy-number" placeholder="001" required /></label>
+            <label>PIN<input id="group-buy-pin" type="password" placeholder="2486" required /></label>
+            <button class="primary" type="submit">Continue to order</button>
+            <p class="hint">Demo: <b>001 / 2486</b> or <b>002 / 7391</b></p>
+            <p id="access-error" class="error hidden"></p>
+            <button id="show-register" class="secondary" type="button">Register new group buy</button>
+          </form>
+        </div>
       </section>
 
-      <section class="toolbar">
-        <label>Category
+      <section id="register-screen" class="card hidden">
+        <div class="split">
+          <div>
+            <p class="kicker">Admin registration</p>
+            <h2>Register a new group buy</h2>
+            <p>Create a new group buy number and PIN, choose products, then share the generated WhatsApp message.</p>
+            <div class="preview">
+              <b>WhatsApp preview</b>
+              <pre id="whatsapp-template"></pre>
+            </div>
+          </div>
+          <form id="register-form" class="form-card">
+            <div class="two-col">
+              <label>Group Buy Number<input id="new-group-number" required /></label>
+              <label>PIN<input id="new-group-pin" required /></label>
+            </div>
+            <label>Title<input id="new-group-title" required /></label>
+            <label>Location<input id="new-group-location" required /></label>
+            <label>Cutoff date/time<input id="new-group-cutoff" type="datetime-local" required /></label>
+            <label>Collection slot<input id="new-group-collection" required /></label>
+            <label>Minimum order note<input id="new-group-min-note" /></label>
+            <label>Payment note<input id="new-group-payment-note" /></label>
+            <div class="row-between"><b>Products</b><button id="select-all-products" class="small" type="button">Toggle all</button></div>
+            <div id="register-products" class="checklist"></div>
+            <button class="primary" type="submit">Create group buy</button>
+            <p id="register-message" class="success hidden"></p>
+            <div class="row-wrap">
+              <button id="back-to-access" class="secondary" type="button">Back</button>
+              <button id="export-group-buys" class="secondary" type="button">Export group buys JSON</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <section id="ordering-screen" class="hidden">
+        <div class="card info">
+          <b>How it works</b>
+          <p>Submit a provisional order. Admin confirms stock and payment after cutoff.</p>
+        </div>
+        <div class="filters">
           <select id="category-filter"><option value="all">All categories</option></select>
-        </label>
-        <label>Search
-          <input id="search-input" type="search" placeholder="Search groceries..." />
-        </label>
+          <input id="search-input" type="search" placeholder="Search groceries" />
+        </div>
+        <div class="row-between"><h2>Catalogue</h2><p id="product-count"></p></div>
+        <div id="product-grid" class="grid"></div>
       </section>
+    </section>
 
-      <section>
-        <div class="section-heading"><h2>Catalogue</h2><p id="product-count"></p></div>
-        <div id="product-grid" class="product-grid"></div>
-      </section>
-    </main>
-
-    <aside class="cart-panel">
-      <div class="cart-header">
-        <div><p class="eyebrow">Your order</p><h2>Cart Summary</h2></div>
-        <button id="clear-cart" class="ghost-button" type="button">Clear</button>
-      </div>
-      <div id="cart-items" class="cart-items"><p class="empty-cart">No items selected yet.</p></div>
-      <div class="cart-total-row"><span>Estimated subtotal</span><strong id="subtotal">$0.00</strong></div>
-      <p class="small-note">Final amount may change after stock/substitution review.</p>
-
-      <form id="order-form" class="order-form">
-        <h3>Buyer details</h3>
-        <label>Name<input id="buyer-name" type="text" placeholder="e.g. Vadora Tang" required /></label>
-        <label>WhatsApp / Phone<input id="buyer-phone" type="tel" placeholder="e.g. 91234567" required /></label>
-        <label>Collection or delivery<select id="collection-preference" required><option value="collection">Self-collection</option><option value="delivery">Delivery</option></select></label>
-        <label>Block / unit / address<textarea id="buyer-address" rows="2" placeholder="e.g. Blk 123 #04-56"></textarea></label>
-        <label>Substitution preference<select id="substitution-preference" required><option value="contact_first">Contact me first</option><option value="allow_substitute">Allow suitable substitute</option><option value="refund_item">Refund unavailable item</option></select></label>
-        <label>Notes for admin<textarea id="buyer-notes" rows="2" placeholder="Any timing, delivery, or item notes?"></textarea></label>
-        <button class="primary-button" type="submit">Submit provisional order</button>
-      </form>
-
-      <div class="export-tools">
-        <button id="export-json" class="secondary-button" type="button">Export orders JSON</button>
-        <button id="export-csv" class="secondary-button" type="button">Export orders CSV</button>
+    <aside class="cart card">
+      <div class="row-between"><div><p class="kicker">Your order</p><h2>Cart</h2></div><button id="clear-cart" class="small">Clear</button></div>
+      <div id="locked-cart-message" class="locked">Enter a valid Group Buy Number and PIN first.</div>
+      <div id="cart-content" class="hidden">
+        <div id="cart-items"></div>
+        <div class="total"><span>Estimated subtotal</span><b id="subtotal">$0.00</b></div>
+        <form id="order-form" class="order-form">
+          <h3>Buyer details</h3>
+          <label>Name<input id="buyer-name" required /></label>
+          <label>WhatsApp / Phone<input id="buyer-phone" required /></label>
+          <label>Collection or delivery<select id="collection-preference"><option value="collection">Self-collection</option><option value="delivery">Delivery</option></select></label>
+          <label>Address / block / unit<textarea id="buyer-address"></textarea></label>
+          <label>Substitution preference<select id="substitution-preference"><option value="contact_first">Contact me first</option><option value="allow_substitute">Allow substitute</option><option value="refund_item">Refund unavailable item</option></select></label>
+          <label>Notes<textarea id="buyer-notes"></textarea></label>
+          <button class="primary" type="submit">Submit provisional order</button>
+        </form>
+        <div class="row-wrap"><button id="export-json" class="secondary">Export orders JSON</button><button id="export-csv" class="secondary">Export orders CSV</button></div>
       </div>
     </aside>
-  </div>
+  </main>
 
-  <div id="confirmation-modal" class="modal-backdrop hidden">
-    <div class="modal">
-      <button id="close-modal" class="close-button" type="button">×</button>
-      <p class="eyebrow">Order received</p>
-      <h2 id="confirmation-title">Thank you!</h2>
-      <p id="confirmation-body"></p>
-      <div id="confirmation-items" class="confirmation-items"></div>
-      <button id="new-order" class="primary-button" type="button">Start another order</button>
-    </div>
-  </div>
-
+  <div id="modal" class="modal hidden"><div><button id="close-modal" class="close">×</button><h2>Order received</h2><p id="modal-body"></p><div id="modal-items"></div></div></div>
   <script src="app.js"></script>
 </body>
 </html>

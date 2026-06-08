@@ -1,123 +1,47 @@
-const STORAGE_KEY = 'ventureSenseOrders';
-const state = { groupBuy: null, products: [], cart: {} };
-const $ = (id) => document.getElementById(id);
-const els = {
-  groupTitle: $('group-title'), groupMeta: $('group-meta'), categoryFilter: $('category-filter'), searchInput: $('search-input'),
-  productGrid: $('product-grid'), productCount: $('product-count'), cartItems: $('cart-items'), subtotal: $('subtotal'),
-  clearCart: $('clear-cart'), orderForm: $('order-form'), exportJson: $('export-json'), exportCsv: $('export-csv'),
-  modal: $('confirmation-modal'), confirmationTitle: $('confirmation-title'), confirmationBody: $('confirmation-body'),
-  confirmationItems: $('confirmation-items'), closeModal: $('close-modal'), newOrder: $('new-order')
-};
-function money(value){ return `$${Number(value || 0).toFixed(2)}`; }
-function makeId(prefix){ return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,8)}`; }
-async function loadCatalogue(){
-  const response = await fetch('catalogue.json');
-  const data = await response.json();
-  state.groupBuy = data.group_buy;
-  state.products = data.products.filter(p => p.is_active);
-  renderHeader(); renderFilters(); renderProducts(); renderCart();
+const ORDER_KEY='ventureSenseOrders';
+const GROUP_KEY='ventureSenseRegisteredGroupBuys';
+const state={seedGroups:[],registeredGroups:[],allGroups:[],products:[],active:null,activeProducts:[],cart:{}};
+const $=id=>document.getElementById(id);
+const money=n=>`$${Number(n||0).toFixed(2)}`;
+const makeId=p=>`${p}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,8)}`;
+const els={title:$('page-title'),sub:$('page-subtitle'),access:$('access-screen'),register:$('register-screen'),ordering:$('ordering-screen'),cartContent:$('cart-content'),locked:$('locked-cart-message'),grid:$('product-grid'),cat:$('category-filter'),search:$('search-input'),count:$('product-count'),cartItems:$('cart-items'),subtotal:$('subtotal'),modal:$('modal'),modalBody:$('modal-body'),modalItems:$('modal-items')};
+function getJSON(key, fallback){try{return JSON.parse(localStorage.getItem(key))||fallback}catch{return fallback}}
+function setJSON(key,val){localStorage.setItem(key,JSON.stringify(val,null,2))}
+function refreshGroups(){state.registeredGroups=getJSON(GROUP_KEY,[]);state.allGroups=[...state.seedGroups,...state.registeredGroups]}
+async function init(){const res=await fetch('catalogue.json');const data=await res.json();state.seedGroups=data.group_buys||[];state.products=data.products||[];refreshGroups();setRegisterDefaults();renderRegisterProducts();bind();updatePreview();}
+function bind(){
+ $('access-form').addEventListener('submit',verifyGroup);
+ $('show-register').addEventListener('click',showRegister);
+ $('back-to-access').addEventListener('click',showAccess);
+ $('register-form').addEventListener('submit',createGroup);
+ $('select-all-products').addEventListener('click',toggleProducts);
+ $('export-group-buys').addEventListener('click',exportGroups);
+ ['new-group-number','new-group-pin','new-group-title','new-group-cutoff','new-group-collection'].forEach(id=>$(id).addEventListener('input',updatePreview));
+ els.cat.addEventListener('change',renderProducts);els.search.addEventListener('input',renderProducts);
+ els.grid.addEventListener('click',e=>{const b=e.target.closest('button[data-id]');if(!b)return;qty(b.dataset.id,b.dataset.action==='plus'?1:-1)});
+ $('clear-cart').addEventListener('click',()=>{state.cart={};renderProducts();renderCart()});
+ $('order-form').addEventListener('submit',submitOrder);
+ $('export-json').addEventListener('click',exportOrdersJSON);$('export-csv').addEventListener('click',exportOrdersCSV);
+ $('close-modal').addEventListener('click',()=>els.modal.classList.add('hidden'));
 }
-function renderHeader(){
-  const cutoff = new Date(state.groupBuy.cutoff_at).toLocaleString('en-SG', { dateStyle:'medium', timeStyle:'short' });
-  els.groupTitle.textContent = state.groupBuy.title;
-  els.groupMeta.textContent = `${state.groupBuy.location} · Closes ${cutoff} · ${state.groupBuy.collection_slot}`;
-}
-function renderFilters(){
-  [...new Set(state.products.map(p => p.category))].sort().forEach(category => {
-    const option = document.createElement('option'); option.value = category; option.textContent = category; els.categoryFilter.appendChild(option);
-  });
-}
-function getFilteredProducts(){
-  const category = els.categoryFilter.value;
-  const query = els.searchInput.value.trim().toLowerCase();
-  return state.products.filter(p => (category === 'all' || p.category === category) && (!query || p.name.toLowerCase().includes(query) || p.sku.toLowerCase().includes(query) || p.category.toLowerCase().includes(query)));
-}
-function renderProducts(){
-  const products = getFilteredProducts(); els.productGrid.innerHTML = ''; els.productCount.textContent = `${products.length} item${products.length === 1 ? '' : 's'}`;
-  if(!products.length){ els.productGrid.innerHTML = '<p class="empty-cart">No products found.</p>'; return; }
-  products.forEach(product => {
-    const quantity = state.cart[product.id] || 0;
-    const card = document.createElement('article'); card.className = 'product-card';
-    card.innerHTML = `
-      <div class="product-image">${product.emoji || '🛒'}</div>
-      <div class="product-body">
-        <span class="product-category">${product.category}</span>
-        <h3>${product.name}</h3>
-        <p class="product-meta">${product.unit} · SKU ${product.sku}</p>
-        <span class="product-note">${product.stock_note || 'Available'}</span>
-        <div class="product-footer">
-          <span class="price">${money(product.price)}</span>
-          <div class="qty-control">
-            <button type="button" data-action="decrease" data-product-id="${product.id}">−</button>
-            <span>${quantity}</span>
-            <button type="button" data-action="increase" data-product-id="${product.id}">+</button>
-          </div>
-        </div>
-      </div>`;
-    els.productGrid.appendChild(card);
-  });
-}
-function getSelectedProducts(){
-  return Object.entries(state.cart).map(([productId, quantity]) => {
-    const product = state.products.find(p => p.id === productId); if(!product || quantity <= 0) return null;
-    return { product, quantity, lineTotal: product.price * quantity };
-  }).filter(Boolean);
-}
-function calculateSubtotal(){ return getSelectedProducts().reduce((sum, item) => sum + item.lineTotal, 0); }
-function renderCart(){
-  const selected = getSelectedProducts(); els.cartItems.innerHTML = '';
-  if(!selected.length){ els.cartItems.innerHTML = '<p class="empty-cart">No items selected yet.</p>'; }
-  selected.forEach(({product, quantity, lineTotal}) => {
-    const row = document.createElement('div'); row.className = 'cart-item';
-    row.innerHTML = `<div class="cart-item-top"><span>${product.name}</span><span>${money(lineTotal)}</span></div><div class="cart-item-bottom"><span>${quantity} × ${product.unit}</span><span>${money(product.price)} each</span></div>`;
-    els.cartItems.appendChild(row);
-  });
-  els.subtotal.textContent = money(calculateSubtotal());
-}
-function updateQuantity(productId, delta){
-  const product = state.products.find(p => p.id === productId); if(!product) return;
-  const next = Math.min(Math.max((state.cart[productId] || 0) + delta, 0), product.max_qty || 99);
-  if(next === 0) delete state.cart[productId]; else state.cart[productId] = next;
-  renderProducts(); renderCart();
-}
-function emptyDb(){ return { buyers:[], orders:[], order_items:[], payments:[], fulfillment:[] }; }
-function getStoredOrders(){ try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || emptyDb(); } catch { return emptyDb(); } }
-function setStoredOrders(data){ localStorage.setItem(STORAGE_KEY, JSON.stringify(data, null, 2)); }
-function submitOrder(event){
-  event.preventDefault();
-  const selected = getSelectedProducts(); if(!selected.length){ alert('Please add at least one item before submitting.'); return; }
-  const name = $('buyer-name').value.trim(), phone = $('buyer-phone').value.trim(), collectionPreference = $('collection-preference').value, address = $('buyer-address').value.trim(), substitutionPreference = $('substitution-preference').value, notes = $('buyer-notes').value.trim();
-  if(!name || !phone){ alert('Please enter your name and phone number.'); return; }
-  if(collectionPreference === 'delivery' && !address){ alert('Please enter your address for delivery.'); return; }
-  const now = new Date().toISOString(), buyerId = makeId('buyer'), orderId = makeId('ord'), subtotal = calculateSubtotal();
-  const buyer = { id: buyerId, name, phone, address, collection_preference: collectionPreference, notes, created_at: now };
-  const order = { id: orderId, group_buy_id: state.groupBuy.id, buyer_id: buyerId, order_status: 'pending', payment_status: 'unpaid', fulfillment_status: 'not_packed', subtotal, discount: 0, final_total: subtotal, admin_notes: '', created_at: now, updated_at: now };
-  const orderItems = selected.map(({product, quantity, lineTotal}) => ({ id: makeId('item'), order_id: orderId, product_id: product.id, product_name: product.name, sku: product.sku, quantity, unit: product.unit, unit_price: product.price, line_total: lineTotal, substitution_preference: substitutionPreference, item_status: 'pending' }));
-  const payment = { id: makeId('pay'), order_id: orderId, payment_method: 'manual', payment_link: '', amount: subtotal, paid_at: '', refund_status: 'none', payment_notes: 'Payment to be confirmed manually after stock review.' };
-  const fulfillment = { id: makeId('ful'), order_id: orderId, packed_status: 'not_packed', collected_status: 'not_collected', delivered_status: 'not_delivered', delivery_batch_id: '', exception_notes: '', updated_at: now };
-  const db = getStoredOrders(); db.buyers.push(buyer); db.orders.push(order); db.order_items.push(...orderItems); db.payments.push(payment); db.fulfillment.push(fulfillment); setStoredOrders(db);
-  showConfirmation(order, buyer, orderItems); state.cart = {}; els.orderForm.reset(); renderProducts(); renderCart();
-}
-function showConfirmation(order, buyer, items){
-  els.confirmationTitle.textContent = `Thanks, ${buyer.name}`;
-  els.confirmationBody.innerHTML = `Your provisional order <strong>${order.id}</strong> has been captured. Estimated total: <strong>${money(order.subtotal)}</strong>. Admin will confirm payment after cutoff.`;
-  els.confirmationItems.innerHTML = '';
-  items.forEach(item => { const line = document.createElement('div'); line.className = 'confirmation-line'; line.innerHTML = `<span>${item.product_name} × ${item.quantity}</span><strong>${money(item.line_total)}</strong>`; els.confirmationItems.appendChild(line); });
-  els.modal.classList.remove('hidden');
-}
-function downloadFile(filename, content, mimeType){
-  const blob = new Blob([content], {type: mimeType}); const url = URL.createObjectURL(blob); const link = document.createElement('a');
-  link.href = url; link.download = filename; document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url);
-}
-function exportJson(){ downloadFile('venture-sense-orders-export.json', JSON.stringify(getStoredOrders(), null, 2), 'application/json'); }
-function exportCsv(){
-  const data = getStoredOrders();
-  const headers = ['order_id','buyer_name','phone','address','collection_preference','items','subtotal','payment_status','fulfillment_status','created_at'];
-  const rows = data.orders.map(order => { const buyer = data.buyers.find(b => b.id === order.buyer_id) || {}; const items = data.order_items.filter(i => i.order_id === order.id).map(i => `${i.product_name} x${i.quantity}`).join('; '); return { order_id: order.id, buyer_name: buyer.name || '', phone: buyer.phone || '', address: buyer.address || '', collection_preference: buyer.collection_preference || '', items, subtotal: order.subtotal, payment_status: order.payment_status, fulfillment_status: order.fulfillment_status, created_at: order.created_at }; });
-  const csv = [headers.join(','), ...rows.map(row => headers.map(h => `"${String(row[h] ?? '').replaceAll('"','""')}"`).join(','))].join('\n');
-  downloadFile('venture-sense-orders-export.csv', csv, 'text/csv');
-}
-els.productGrid.addEventListener('click', event => { const button = event.target.closest('button[data-action]'); if(!button) return; updateQuantity(button.dataset.productId, button.dataset.action === 'increase' ? 1 : -1); });
-els.categoryFilter.addEventListener('change', renderProducts); els.searchInput.addEventListener('input', renderProducts); els.clearCart.addEventListener('click', () => { state.cart = {}; renderProducts(); renderCart(); });
-els.orderForm.addEventListener('submit', submitOrder); els.exportJson.addEventListener('click', exportJson); els.exportCsv.addEventListener('click', exportCsv); els.closeModal.addEventListener('click', () => els.modal.classList.add('hidden')); els.newOrder.addEventListener('click', () => els.modal.classList.add('hidden'));
-loadCatalogue().catch(error => { console.error(error); alert('Could not load catalogue.json. Run with python3 -m http.server 8000 from this folder.'); });
+function showAccess(){els.access.classList.remove('hidden');els.register.classList.add('hidden');els.ordering.classList.add('hidden');els.title.textContent='Group Buy Ordering';els.sub.textContent='Customers enter a Group Buy Number + PIN. Admins can register new group buys here for demo testing.'}
+function showRegister(){els.access.classList.add('hidden');els.register.classList.remove('hidden');els.ordering.classList.add('hidden');els.title.textContent='Register New Group Buy';els.sub.textContent='Create a group buy number, PIN, and available catalogue for customers.';updatePreview()}
+function unlock(){els.access.classList.add('hidden');els.register.classList.add('hidden');els.ordering.classList.remove('hidden');els.cartContent.classList.remove('hidden');els.locked.classList.add('hidden');els.title.textContent=state.active.title;const d=new Date(state.active.cutoff_at);els.sub.textContent=`${state.active.location} · Group Buy No. ${state.active.group_buy_number} · Closes ${d.toLocaleString('en-SG',{dateStyle:'medium',timeStyle:'short'})} · ${state.active.collection_slot}`;renderFilters();renderProducts();renderCart()}
+function setRegisterDefaults(){const n=String(state.allGroups.length+1).padStart(3,'0');$('new-group-number').value=n;$('new-group-pin').value=String(Math.floor(1000+Math.random()*9000));$('new-group-title').value=`Group Buy #${n} - New Grocery Round`;$('new-group-location').value='Tampines / East Region';$('new-group-min-note').value='No minimum order for prototype.';$('new-group-payment-note').value='Payment will be confirmed manually after stock review.'}
+function renderRegisterProducts(){const box=$('register-products');box.innerHTML='';state.products.forEach(p=>{const label=document.createElement('label');label.className='check';label.innerHTML=`<input type="checkbox" value="${p.id}" checked><span>${p.name} <small>(${p.unit})</small></span><b>${money(p.price)}</b>`;box.appendChild(label)})}
+function updatePreview(){const num=$('new-group-number').value||'___',pin=$('new-group-pin').value||'____',title=$('new-group-title').value||`Group Buy #${num}`,cut=$('new-group-cutoff').value?new Date($('new-group-cutoff').value).toLocaleString('en-SG',{dateStyle:'medium',timeStyle:'short'}):'[cutoff]',coll=$('new-group-collection').value||'[collection slot]';$('whatsapp-template').textContent=`Venture Sense ${title} is open!\n\nOrder here:\n[prototype order link]\n\nGroup Buy Number: ${num}\nPIN: ${pin}\n\nCloses: ${cut}\nCollection: ${coll}\n\nNote: Submit your order first. Final payment will be confirmed after stock review.`}
+function toggleProducts(){const boxes=[...document.querySelectorAll('#register-products input')];const check=boxes.some(b=>!b.checked);boxes.forEach(b=>b.checked=check)}
+function createGroup(e){e.preventDefault();refreshGroups();const num=$('new-group-number').value.trim(),pin=$('new-group-pin').value.trim();if(state.allGroups.some(g=>String(g.group_buy_number)===num)){alert('This Group Buy Number already exists.');return}const product_ids=[...document.querySelectorAll('#register-products input:checked')].map(i=>i.value);if(!product_ids.length){alert('Select at least one product.');return}const gb={id:`gb_${num}`,group_buy_number:num,pin,title:$('new-group-title').value.trim(),status:'active',cutoff_at:new Date($('new-group-cutoff').value).toISOString(),collection_slot:$('new-group-collection').value.trim(),location:$('new-group-location').value.trim(),minimum_order_note:$('new-group-min-note').value.trim(),payment_note:$('new-group-payment-note').value.trim(),product_ids,created_in_frontend:true,created_at:new Date().toISOString()};const regs=getJSON(GROUP_KEY,[]);regs.push(gb);setJSON(GROUP_KEY,regs);refreshGroups();$('register-message').textContent=`Created ${gb.title}. Customers can use ${num} / ${pin}.`;$('register-message').classList.remove('hidden');$('group-buy-number').value=num;$('group-buy-pin').value=pin;updatePreview()}
+function verifyGroup(e){e.preventDefault();refreshGroups();const num=$('group-buy-number').value.trim(),pin=$('group-buy-pin').value.trim();const gb=state.allGroups.find(g=>String(g.group_buy_number)===num&&String(g.pin)===pin&&g.status==='active');if(!gb){$('access-error').textContent='Invalid group buy number or PIN.';$('access-error').classList.remove('hidden');return}state.active=gb;state.activeProducts=state.products.filter(p=>p.is_active&&(!gb.product_ids||gb.product_ids.includes(p.id)));state.cart={};$('access-error').classList.add('hidden');unlock()}
+function renderFilters(){const cats=[...new Set(state.activeProducts.map(p=>p.category))].sort();els.cat.innerHTML='<option value="all">All categories</option>'+cats.map(c=>`<option value="${c}">${c}</option>`).join('')}
+function filtered(){const c=els.cat.value,q=els.search.value.toLowerCase();return state.activeProducts.filter(p=>(c==='all'||p.category===c)&&(!q||p.name.toLowerCase().includes(q)||p.sku.toLowerCase().includes(q)))}
+function renderProducts(){const arr=filtered();els.count.textContent=`${arr.length} items`;els.grid.innerHTML=arr.map(p=>`<article class="product"><img src="${p.image_url}" alt="${p.name}"><div class="body"><span class="kicker">${p.category}</span><h3>${p.name}</h3><p class="meta">${p.unit} · ${p.sku}</p><span class="pill">${p.stock_note||'Available'}</span><div class="product-foot"><b>${money(p.price)}</b><div class="qty"><button data-id="${p.id}" data-action="minus">−</button><span>${state.cart[p.id]||0}</span><button data-id="${p.id}" data-action="plus">+</button></div></div></div></article>`).join('')||'<p>No products found.</p>'}
+function qty(id,delta){const p=state.activeProducts.find(x=>x.id===id);const next=Math.min(Math.max((state.cart[id]||0)+delta,0),p.max_qty||99);if(next)state.cart[id]=next;else delete state.cart[id];renderProducts();renderCart()}
+function selected(){return Object.entries(state.cart).map(([id,q])=>{const p=state.activeProducts.find(x=>x.id===id);return p?{p,q,line:p.price*q}:null}).filter(Boolean)}
+function renderCart(){const arr=selected();els.cartItems.innerHTML=arr.map(x=>`<div class="cart-line"><div><b>${x.p.name}</b><b>${money(x.line)}</b></div><div><span>${x.q} × ${x.p.unit}</span><span>${money(x.p.price)} each</span></div></div>`).join('')||'<p class="hint">No items selected.</p>';els.subtotal.textContent=money(arr.reduce((s,x)=>s+x.line,0))}
+function submitOrder(e){e.preventDefault();const arr=selected();if(!arr.length){alert('Add at least one item.');return}const name=$('buyer-name').value.trim(),phone=$('buyer-phone').value.trim(),pref=$('collection-preference').value,address=$('buyer-address').value.trim();if(pref==='delivery'&&!address){alert('Address required for delivery.');return}const now=new Date().toISOString(),buyer_id=makeId('buyer'),order_id=makeId('ord'),subtotal=arr.reduce((s,x)=>s+x.line,0);const db=getJSON(ORDER_KEY,{buyers:[],orders:[],order_items:[],payments:[],fulfillment:[]});db.buyers.push({id:buyer_id,name,phone,address,collection_preference:pref,notes:$('buyer-notes').value.trim(),created_at:now});db.orders.push({id:order_id,group_buy_id:state.active.id,group_buy_number:state.active.group_buy_number,buyer_id,order_status:'pending',payment_status:'unpaid',fulfillment_status:'not_packed',subtotal,discount:0,final_total:subtotal,created_at:now,updated_at:now});arr.forEach(x=>db.order_items.push({id:makeId('item'),order_id,group_buy_id:state.active.id,group_buy_number:state.active.group_buy_number,product_id:x.p.id,product_name:x.p.name,sku:x.p.sku,quantity:x.q,unit:x.p.unit,unit_price:x.p.price,line_total:x.line,substitution_preference:$('substitution-preference').value,item_status:'pending'}));db.payments.push({id:makeId('pay'),order_id,group_buy_id:state.active.id,group_buy_number:state.active.group_buy_number,payment_method:'manual',amount:subtotal,refund_status:'none'});db.fulfillment.push({id:makeId('ful'),order_id,group_buy_id:state.active.id,group_buy_number:state.active.group_buy_number,packed_status:'not_packed',collected_status:'not_collected',delivered_status:'not_delivered',updated_at:now});setJSON(ORDER_KEY,db);els.modalBody.innerHTML=`Order <b>${order_id}</b> captured for <b>Group Buy #${state.active.group_buy_number}</b>. Estimated total: <b>${money(subtotal)}</b>.`;els.modalItems.innerHTML=arr.map(x=>`<div class="cart-line"><div><span>${x.p.name} × ${x.q}</span><b>${money(x.line)}</b></div></div>`).join('');els.modal.classList.remove('hidden');state.cart={};$('order-form').reset();renderProducts();renderCart()}
+function download(name,content,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([content],{type}));a.download=name;a.click();URL.revokeObjectURL(a.href)}
+function exportGroups(){refreshGroups();download('venture-sense-group-buys-export.json',JSON.stringify({seed_group_buys:state.seedGroups,registered_group_buys:state.registeredGroups,all_group_buys:state.allGroups},null,2),'application/json')}
+function exportOrdersJSON(){download('venture-sense-orders-export.json',JSON.stringify(getJSON(ORDER_KEY,{buyers:[],orders:[],order_items:[],payments:[],fulfillment:[]}),null,2),'application/json')}
+function exportOrdersCSV(){const db=getJSON(ORDER_KEY,{buyers:[],orders:[],order_items:[]});const headers=['order_id','group_buy_id','group_buy_number','buyer_name','phone','items','subtotal','payment_status','fulfillment_status','created_at'];const rows=db.orders.map(o=>{const b=db.buyers.find(x=>x.id===o.buyer_id)||{};const items=db.order_items.filter(i=>i.order_id===o.id).map(i=>`${i.product_name} x${i.quantity}`).join('; ');return [o.id,o.group_buy_id,o.group_buy_number,b.name,b.phone,items,o.subtotal,o.payment_status,o.fulfillment_status,o.created_at]});const csv=[headers,...rows].map(r=>r.map(v=>`"${String(v??'').replaceAll('"','""')}"`).join(',')).join('\n');download('venture-sense-orders-export.csv',csv,'text/csv')}
+init();

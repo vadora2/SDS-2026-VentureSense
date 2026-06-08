@@ -1,2 +1,0 @@
-id,title,status,cutoff_at,collection_slot,location,minimum_order_note,payment_note,order_link
-gb_001,Group Buy #001 - Tampines Grocery Round,active,2026-06-12T20:00:00+08:00,"Saturday, 13 June 2026, 2pm-5pm",Tampines / East Region,No minimum order for prototype.,Submit your order first. Final payment will be confirmed manually after stock review.,customer-ordering/frontend/index.html
