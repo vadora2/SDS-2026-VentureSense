@@ -6,8 +6,8 @@ if %errorlevel% == 0 (
     start "" "http://localhost:3000/admin-dashboard/frontend/index.html"
     goto :eof
 )
-echo Starting server from %cd%...
-start "VentureSense Dev Server" cmd /k "cd /d "%~dp0" && npx serve . --listen 3000"
+echo Starting server...
+start /d "%~dp0" "VentureSense Dev Server" cmd /k npx serve . --listen 3000
 echo Waiting for server to be ready...
 :waitloop
 timeout /t 1 /nobreak >nul
