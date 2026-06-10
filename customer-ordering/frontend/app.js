@@ -2,9 +2,13 @@ import {
   db,
   collection,
   addDoc,
+  setDoc,
+  getDoc,
+  getDocs,
   query,
   where,
   onSnapshot,
+  doc,
   serverTimestamp
 } from "./firebase-config.js";
 
@@ -67,19 +71,113 @@ function setJSON(key, val) {
 
 function refreshGroups() {
   state.registeredGroups = getJSON(GROUP_KEY, []);
-  state.allGroups = [...state.seedGroups, ...state.registeredGroups];
+  const byId = new Map();
+  [...state.seedGroups, ...state.registeredGroups].forEach(group => byId.set(group.id, group));
+  state.allGroups = [...byId.values()];
 }
 
 async function init() {
-  const res = await fetch("catalogue.json");
-  const data = await res.json();
-  state.seedGroups = data.group_buys || [];
-  state.products = data.products || [];
+  const data = await loadSeedCatalogue();
+  await loadCatalogueFromFirestore(data);
+  await seedDemoPromo();
   refreshGroups();
   setRegisterDefaults();
   renderRegisterProducts();
   bind();
   updatePreview();
+}
+
+async function loadSeedCatalogue() {
+  const res = await fetch("catalogue.json");
+  return res.json();
+}
+
+async function seedCatalogueToFirestore(data) {
+  const now = new Date().toISOString();
+  await Promise.all([
+    ...(data.products || []).map(product => setDoc(doc(db, "products", product.id), {
+      ...product,
+      created_at: serverTimestamp(),
+      updated_at: now,
+      seeded_from_catalogue: true
+    })),
+    ...(data.group_buys || []).map(group => setDoc(doc(db, "group_buys", group.id), {
+      ...group,
+      product_ids: normalizeProductIds(group.product_ids),
+      created_at: serverTimestamp(),
+      updated_at: now,
+      seeded_from_catalogue: true
+    }))
+  ]);
+}
+
+async function loadCatalogueFromFirestore(data) {
+  state.seedGroups = data.group_buys || [];
+  state.products = data.products || [];
+
+  try {
+    await seedCatalogueToFirestore(data);
+    await syncLocalGroupBuysToFirestore(new Set((data.group_buys || []).map(group => group.id)));
+    const [productSnapshot, groupSnapshot] = await Promise.all([
+      getDocs(collection(db, "products")),
+      getDocs(collection(db, "group_buys"))
+    ]);
+    const products = productSnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+    const groups = groupSnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+    if (products.length) state.products = products;
+    if (groups.length) state.seedGroups = groups;
+  } catch (error) {
+    console.error("Firestore catalogue unavailable; using catalogue.json fallback:", error);
+  }
+}
+
+async function syncLocalGroupBuysToFirestore(seedGroupIds = new Set()) {
+  const localGroups = getJSON(GROUP_KEY, []).filter(group => !seedGroupIds.has(group.id));
+  if (!localGroups.length) return;
+  await Promise.all(localGroups.map(group => setDoc(doc(db, "group_buys", group.id), {
+    ...group,
+    product_ids: normalizeProductIds(group.product_ids),
+    updated_at: new Date().toISOString(),
+    synced_from_local_storage: true
+  })));
+}
+
+function normalizeProductIds(productIds) {
+  if (Array.isArray(productIds)) return productIds;
+  if (typeof productIds === "string") {
+    try {
+      const parsed = JSON.parse(productIds);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return productIds.split(",").map(id => id.trim()).filter(Boolean);
+    }
+  }
+  return [];
+}
+
+async function seedDemoPromo() {
+  try {
+    const promoRef = doc(db, "promos", "demo_gb_002_group_spend_35");
+    const snapshot = await getDoc(promoRef);
+    if (snapshot.exists()) return;
+
+    await setDoc(promoRef, {
+      group_buy_id: "gb_002",
+      title: "Unlock Bedok bulk savings",
+      promo_type: "group_spend",
+      threshold_amount: 35,
+      product_id: "",
+      product_name: "",
+      threshold_quantity: 0,
+      benefit_label: "Estimated bulk savings after admin review",
+      status: "active",
+      demo_seed: true,
+      created_at: serverTimestamp(),
+      updated_at: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error("Could not seed demo promo:", error);
+  }
 }
 
 function bind() {
@@ -189,7 +287,7 @@ function toggleProducts() {
   boxes.forEach(b => b.checked = check);
 }
 
-function createGroup(e) {
+async function createGroup(e) {
   e.preventDefault();
   refreshGroups();
   const num = $("new-group-number").value.trim();
@@ -218,6 +316,17 @@ function createGroup(e) {
     created_in_frontend: true,
     created_at: new Date().toISOString()
   };
+  try {
+    await setDoc(doc(db, "group_buys", gb.id), {
+      ...gb,
+      updated_at: nowTimestamp(),
+      created_in_frontend: true
+    });
+  } catch (error) {
+    console.error("Failed to save group buy to Firebase:", error);
+    alert("Group buy saved locally, but Firebase upload failed. Check Firebase config/rules.");
+  }
+
   const regs = getJSON(GROUP_KEY, []);
   regs.push(gb);
   setJSON(GROUP_KEY, regs);
@@ -227,6 +336,10 @@ function createGroup(e) {
   $("group-buy-number").value = num;
   $("group-buy-pin").value = pin;
   updatePreview();
+}
+
+function nowTimestamp() {
+  return new Date().toISOString();
 }
 
 function verifyGroup(e) {
@@ -402,10 +515,10 @@ function renderPromos() {
     const progress = promoProgress(promo);
     const isItem = promo.promo_type === "item_quantity";
     const detail = progress.unlocked
-      ? `Unlocked: ${promo.benefit_label || "bulk savings available"}`
+      ? "Bulk savings unlocked. Admin will reflect savings after final review."
       : isItem
         ? `Group needs ${progress.remaining} more ${progress.product_name} to unlock.`
-        : `Group is ${money(progress.remaining)} away from unlocking.`;
+        : `Add ${money(progress.remaining)} more as a group to unlock bulk savings.`;
     const currentLabel = isItem
       ? `${progress.current} / ${progress.threshold} units`
       : `${money(progress.current)} / ${money(progress.threshold)}`;

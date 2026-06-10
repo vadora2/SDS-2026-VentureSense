@@ -613,7 +613,8 @@
     }
 
     .admin-form input,
-    .admin-form select {
+    .admin-form select,
+    .admin-form textarea {
       border: 1px solid var(--border);
       border-radius: 6px;
       padding: 8px 10px;
@@ -637,6 +638,7 @@
     .promo-admin-row:last-child { border-bottom: none; }
     .promo-admin-row h4 { font-size: 13px; margin-bottom: 4px; }
     .promo-admin-meta { color: var(--text-muted); line-height: 1.5; }
+    .admin-form select[multiple] { min-height: 120px; }
 
     .row-wrap {
       display: flex;
@@ -675,6 +677,13 @@
           <line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/>
         </svg>
         Order Management
+      </a>
+      <a href="#" class="nav-link" data-page="catalogue">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M4 19.5A2.5 2.5 0 016.5 17H20"/>
+          <path d="M4 4.5A2.5 2.5 0 016.5 2H20v20H6.5A2.5 2.5 0 014 19.5z"/>
+        </svg>
+        Catalogue
       </a>
       <a href="#" class="nav-link" data-page="promos">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -883,6 +892,69 @@
               <div id="om-fulfillment-summary"></div>
             </div>
 
+          </div>
+        </div>
+      </div>
+
+      <div id="page-catalogue" class="page">
+        <div class="dash-cols">
+          <div>
+            <div class="card">
+              <div class="card-header">
+                <h3>Create Group Buy</h3>
+                <span>Firestore group_buys collection</span>
+              </div>
+              <form id="group-form" class="admin-form">
+                <label>Group number
+                  <input id="group-number" placeholder="003" required />
+                </label>
+                <label>PIN
+                  <input id="group-pin" placeholder="5821" required />
+                </label>
+                <label class="full">Title
+                  <input id="group-title" placeholder="Group Buy #003 - New Grocery Round" required />
+                </label>
+                <label>Location
+                  <input id="group-location" placeholder="Yishun / North Region" required />
+                </label>
+                <label>Cutoff
+                  <input id="group-cutoff" type="datetime-local" required />
+                </label>
+                <label class="full">Collection slot
+                  <input id="group-collection" placeholder="Monday, 15 June 2026, 6pm-8pm" required />
+                </label>
+                <label class="full">Products
+                  <select id="group-products" multiple required></select>
+                </label>
+                <label class="full">Minimum order note
+                  <input id="group-min-note" placeholder="No minimum order for prototype." />
+                </label>
+                <label class="full">Payment note
+                  <input id="group-payment-note" placeholder="Payment will be confirmed manually after stock review." />
+                </label>
+                <div class="full row-wrap">
+                  <button class="btn btn-primary" type="submit">Create group buy</button>
+                  <span id="group-message" style="font-size:12px;color:var(--text-muted)"></span>
+                </div>
+              </form>
+            </div>
+          </div>
+
+          <div class="right-col">
+            <div class="card">
+              <div class="card-header">
+                <h3>Group Buys</h3>
+                <span id="catalogue-group-count">0 groups</span>
+              </div>
+              <div id="catalogue-group-list"></div>
+            </div>
+            <div class="card">
+              <div class="card-header">
+                <h3>Products</h3>
+                <span id="catalogue-product-count">0 products</span>
+              </div>
+              <div id="catalogue-product-list"></div>
+            </div>
           </div>
         </div>
       </div>

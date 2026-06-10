@@ -1,7 +1,11 @@
 import {
   db,
+  collection,
   doc,
   getDoc,
+  getDocs,
+  query,
+  where,
   updateDoc
 } from "./firebase-config.js";
 
@@ -16,6 +20,8 @@ const button = document.getElementById("payment-button");
 
 let orderRef = null;
 let order = null;
+let groupOrders = [];
+let promos = [];
 
 const money = n => `$${Number(n || 0).toFixed(2)}`;
 
@@ -43,6 +49,7 @@ function renderOrder() {
       <p><b>Payment status:</b> ${String(order.payment_status || "unpaid").replace("_", " ")}</p>
       <p><b>Estimated total:</b> ${money(order.final_total || order.subtotal)}</p>
     </div>
+    ${renderPromoNudge()}
     <h3>Items</h3>
     ${itemHtml}
   `;
@@ -55,6 +62,75 @@ function renderOrder() {
     showStatus("This order is already marked as paid.");
   } else {
     button.disabled = false;
+  }
+}
+
+function groupSubtotal() {
+  return groupOrders.reduce((sum, groupOrder) => sum + Number(groupOrder.subtotal || 0), 0);
+}
+
+function groupItemQuantity(productId) {
+  return groupOrders.reduce((sum, groupOrder) => {
+    const items = Array.isArray(groupOrder.items) ? groupOrder.items : [];
+    return sum + items
+      .filter(item => item.product_id === productId)
+      .reduce((itemSum, item) => itemSum + Number(item.quantity || 0), 0);
+  }, 0);
+}
+
+function promoProgress(promo) {
+  if (promo.promo_type === "item_quantity") {
+    const threshold = Number(promo.threshold_quantity || 0);
+    const current = groupItemQuantity(promo.product_id);
+    return {
+      unlocked: threshold > 0 && current >= threshold,
+      remaining: Math.max(threshold - current, 0),
+      label: `${Math.max(threshold - current, 0)} more ${promo.product_name || "items"}`
+    };
+  }
+
+  const threshold = Number(promo.threshold_amount || 0);
+  const current = groupSubtotal();
+  return {
+    unlocked: threshold > 0 && current >= threshold,
+    remaining: Math.max(threshold - current, 0),
+    label: money(Math.max(threshold - current, 0))
+  };
+}
+
+function renderPromoNudge() {
+  const activePromos = promos.filter(promo => (promo.status || "active") === "active");
+  if (!activePromos.length) return "";
+
+  const promo = activePromos[0];
+  const progress = promoProgress(promo);
+  const message = progress.unlocked
+    ? "Bulk savings unlocked. Admin will verify final payable amount."
+    : promo.promo_type === "item_quantity"
+      ? `Your group needs ${progress.label} to unlock bulk savings. Go back to ordering to add more before paying.`
+      : `Your group is ${progress.label} away from bulk savings. Go back to ordering to add more before paying.`;
+
+  return `<div class="payment-box">
+    <p><b>${promo.title || "Group promo"}</b></p>
+    <p>${message}</p>
+    <p class="hint">${promo.benefit_label || "Estimated savings after admin review."}</p>
+  </div>`;
+}
+
+async function loadPromoNudges() {
+  if (!order?.group_buy_id) return;
+
+  try {
+    const [orderSnapshot, promoSnapshot] = await Promise.all([
+      getDocs(query(collection(db, "orders"), where("group_buy_id", "==", order.group_buy_id))),
+      getDocs(query(collection(db, "promos"), where("group_buy_id", "==", order.group_buy_id)))
+    ]);
+    groupOrders = orderSnapshot.docs.map(docSnap => ({ firebase_doc_id: docSnap.id, ...docSnap.data() }));
+    promos = promoSnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+  } catch (error) {
+    console.error("Could not load promo nudge:", error);
+    groupOrders = [order];
+    promos = Array.isArray(order.promo_snapshot) ? order.promo_snapshot : [];
   }
 }
 
@@ -74,6 +150,7 @@ async function loadOrder() {
       return;
     }
     order = { firebase_doc_id: snapshot.id, ...snapshot.data() };
+    await loadPromoNudges();
     renderOrder();
   } catch (error) {
     console.error("Failed to load payment order:", error);

@@ -13,6 +13,27 @@
 - minimum_order_note
 - payment_note
 - product_ids
+- created_at
+- updated_at
+- seeded_from_catalogue
+- synced_from_local_storage
+
+## products
+
+- id
+- sku
+- name
+- category
+- unit
+- price
+- image_url
+- stock_note
+- min_qty
+- max_qty
+- is_active
+- created_at
+- updated_at
+- seeded_from_catalogue
 
 ## localStorage keys in prototype
 
@@ -20,6 +41,10 @@
 - `ventureSenseOrders`
 
 ## Firestore prototype collections
+
+Firestore is the main prototype source for `products`, `group_buys`, `promos`, and `orders`.
+`customer-ordering/frontend/catalogue.json` is used as a seed/fallback when Firestore is empty or unavailable.
+Known seed docs from `catalogue.json` are repaired on startup so malformed demo data, such as stringified `product_ids`, is normalized back to the seed shape. Admin-created group buys with different ids are preserved.
 
 ### orders
 
@@ -79,4 +104,4 @@ Admin dashboard writes group-buy promo rules to the `promos` collection. Custome
 
 For production, do not expose real PINs in frontend JavaScript. Validate PINs through a backend.
 
-Temporary local/demo Firestore rules can allow create/read/update on `orders` and read/write on `promos`, but do not use open rules in production.
+Temporary local/demo Firestore rules can allow create/read/update on `orders` and read/write on `products`, `group_buys`, and `promos`, but do not use open rules in production.

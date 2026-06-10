@@ -2,6 +2,7 @@ import {
   db,
   collection,
   addDoc,
+  setDoc,
   getDocs,
   query,
   where,
@@ -20,6 +21,7 @@ let CATALOGUE = { group_buys: [], products: [] };
 const PAGE_TITLES = {
   dashboard:    'Dashboard',
   orders:       'Order Management',
+  catalogue:    'Catalogue',
   promos:       'Promos',
   transactions: 'Transactions',
 };
@@ -47,8 +49,10 @@ document.querySelectorAll('.nav-link').forEach(link => {
 
 const promoForm = document.getElementById('promo-form');
 const promoType = document.getElementById('promo-type');
+const groupForm = document.getElementById('group-form');
 if (promoForm) promoForm.addEventListener('submit', createPromo);
 if (promoType) promoType.addEventListener('change', updatePromoTypeFields);
+if (groupForm) groupForm.addEventListener('submit', createGroupBuy);
 
 // ── CSV loading ───────────────────────────────────────────────
 function showError(msg) {
@@ -66,6 +70,7 @@ function renderAll() {
   updateTopbarMeta();
   renderDashboard();
   renderOrderManagement();
+  renderCataloguePage();
   renderPromosPage();
   renderTransactions();
   document.getElementById('loading-overlay').classList.add('hidden');
@@ -324,6 +329,57 @@ function initPromoControls() {
   )).join('');
 
   updatePromoTypeFields();
+  initGroupControls();
+}
+
+function initGroupControls() {
+  const productSelect = document.getElementById('group-products');
+  if (!productSelect) return;
+
+  productSelect.innerHTML = (CATALOGUE.products || []).map(product => (
+    `<option value="${product.id}">${product.name} (${product.sku})</option>`
+  )).join('');
+
+  const nextNumber = String((CATALOGUE.group_buys || []).length + 1).padStart(3, '0');
+  if (document.getElementById('group-number') && !document.getElementById('group-number').value) {
+    document.getElementById('group-number').value = nextNumber;
+    document.getElementById('group-pin').value = String(Math.floor(1000 + Math.random() * 9000));
+    document.getElementById('group-title').value = `Group Buy #${nextNumber} - New Grocery Round`;
+    document.getElementById('group-location').value = 'Tampines / East Region';
+    document.getElementById('group-min-note').value = 'No minimum order for prototype.';
+    document.getElementById('group-payment-note').value = 'Payment will be confirmed manually after stock review.';
+  }
+}
+
+function renderCataloguePage() {
+  const productList = document.getElementById('catalogue-product-list');
+  const groupList = document.getElementById('catalogue-group-list');
+  const productCount = document.getElementById('catalogue-product-count');
+  const groupCount = document.getElementById('catalogue-group-count');
+  if (!productList || !groupList || !productCount || !groupCount) return;
+
+  productCount.textContent = CATALOGUE.products.length + ' products';
+  groupCount.textContent = CATALOGUE.group_buys.length + ' groups';
+
+  productList.innerHTML = CATALOGUE.products.map(product => `
+    <div class="promo-admin-row">
+      <div>
+        <h4>${product.name}</h4>
+        <div class="promo-admin-meta">${product.sku} · ${product.category} · $${Number(product.price || 0).toFixed(2)} · ${product.unit}</div>
+      </div>
+      ${product.is_active === false ? '<span class="pill pill-gray">inactive</span>' : '<span class="pill pill-green">active</span>'}
+    </div>
+  `).join('') || '<div class="promo-admin-row"><span class="promo-admin-meta">No products found.</span></div>';
+
+  groupList.innerHTML = CATALOGUE.group_buys.map(group => `
+    <div class="promo-admin-row">
+      <div>
+        <h4>${group.group_buy_number} · ${group.title}</h4>
+        <div class="promo-admin-meta">${group.location || '-'} · ${group.product_ids?.length || 0} products<br>${group.collection_slot || ''}</div>
+      </div>
+      <span class="pill ${group.status === 'active' ? 'pill-green' : 'pill-gray'}">${group.status || 'active'}</span>
+    </div>
+  `).join('') || '<div class="promo-admin-row"><span class="promo-admin-meta">No group buys found.</span></div>';
 }
 
 function updatePromoTypeFields() {
@@ -442,6 +498,52 @@ async function createPromo(event) {
   }
 }
 
+async function createGroupBuy(event) {
+  event.preventDefault();
+  const number = document.getElementById('group-number').value.trim();
+  const id = `gb_${number}`;
+  const productIds = [...document.getElementById('group-products').selectedOptions].map(option => option.value);
+  const payload = {
+    id,
+    group_buy_number: number,
+    pin: document.getElementById('group-pin').value.trim(),
+    title: document.getElementById('group-title').value.trim(),
+    status: 'active',
+    cutoff_at: new Date(document.getElementById('group-cutoff').value).toISOString(),
+    collection_slot: document.getElementById('group-collection').value.trim(),
+    location: document.getElementById('group-location').value.trim(),
+    minimum_order_note: document.getElementById('group-min-note').value.trim(),
+    payment_note: document.getElementById('group-payment-note').value.trim(),
+    product_ids: productIds,
+    created_from_admin: true,
+    created_at: serverTimestamp(),
+    updated_at: new Date().toISOString()
+  };
+
+  if (!productIds.length) {
+    document.getElementById('group-message').textContent = 'Select at least one product.';
+    return;
+  }
+
+  if ((CATALOGUE.group_buys || []).some(group => group.id === id || String(group.group_buy_number) === number)) {
+    document.getElementById('group-message').textContent = 'This group buy number already exists.';
+    return;
+  }
+
+  try {
+    await setDoc(doc(db, 'group_buys', id), payload);
+    CATALOGUE.group_buys.push({ ...payload, created_at: new Date().toISOString() });
+    renderCataloguePage();
+    initPromoControls();
+    groupForm.reset();
+    initGroupControls();
+    document.getElementById('group-message').textContent = 'Group buy created in Firestore.';
+  } catch (error) {
+    console.error('Failed to create group buy:', error);
+    document.getElementById('group-message').textContent = 'Could not create group buy. Check Firebase rules.';
+  }
+}
+
 function mapFirebaseOrderToDashboardRow(order) {
   return {
     firebase_doc_id: order.firebase_doc_id,
@@ -536,17 +638,82 @@ function loadOrdersFromCSV() {
 }
 
 async function loadCatalogue() {
+  let seedCatalogue = { group_buys: [], products: [] };
   try {
     const response = await fetch('../../customer-ordering/frontend/catalogue.json');
-    CATALOGUE = await response.json();
+    seedCatalogue = await response.json();
+  } catch (error) {
+    console.error('Failed to load catalogue.json fallback:', error);
+  }
+
+  CATALOGUE = {
+    group_buys: seedCatalogue.group_buys || [],
+    products: seedCatalogue.products || []
+  };
+
+  try {
+    await seedCatalogueToFirestore(seedCatalogue);
+    await syncLocalGroupBuysToFirestore(new Set((seedCatalogue.group_buys || []).map(group => group.id)));
+    const [productSnapshot, groupSnapshot] = await Promise.all([
+      getDocs(collection(db, 'products')),
+      getDocs(collection(db, 'group_buys'))
+    ]);
+    const products = productSnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+    const groups = groupSnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+    if (products.length) CATALOGUE.products = products;
+    if (groups.length) CATALOGUE.group_buys = groups;
+  } catch (error) {
+    console.error('Firestore catalogue unavailable; using fallback catalogue:', error);
     const registered = JSON.parse(localStorage.getItem('ventureSenseRegisteredGroupBuys') || '[]');
     CATALOGUE.group_buys = [...(CATALOGUE.group_buys || []), ...registered];
-  } catch (error) {
-    console.error('Failed to load catalogue for promos:', error);
-    CATALOGUE = { group_buys: [], products: [] };
   }
   initPromoControls();
+  renderCataloguePage();
   renderPromosPage();
+}
+
+async function seedCatalogueToFirestore(seedCatalogue) {
+  const now = new Date().toISOString();
+  await Promise.all([
+    ...(seedCatalogue.products || []).map(product => setDoc(doc(db, 'products', product.id), {
+      ...product,
+      created_at: serverTimestamp(),
+      updated_at: now,
+      seeded_from_catalogue: true
+    })),
+    ...(seedCatalogue.group_buys || []).map(group => setDoc(doc(db, 'group_buys', group.id), {
+      ...group,
+      product_ids: normalizeProductIds(group.product_ids),
+      created_at: serverTimestamp(),
+      updated_at: now,
+      seeded_from_catalogue: true
+    }))
+  ]);
+}
+
+async function syncLocalGroupBuysToFirestore(seedGroupIds = new Set()) {
+  const localGroups = JSON.parse(localStorage.getItem('ventureSenseRegisteredGroupBuys') || '[]')
+    .filter(group => !seedGroupIds.has(group.id));
+  if (!localGroups.length) return;
+  await Promise.all(localGroups.map(group => setDoc(doc(db, 'group_buys', group.id), {
+    ...group,
+    product_ids: normalizeProductIds(group.product_ids),
+    updated_at: new Date().toISOString(),
+    synced_from_local_storage: true
+  })));
+}
+
+function normalizeProductIds(productIds) {
+  if (Array.isArray(productIds)) return productIds;
+  if (typeof productIds === 'string') {
+    try {
+      const parsed = JSON.parse(productIds);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return productIds.split(',').map(id => id.trim()).filter(Boolean);
+    }
+  }
+  return [];
 }
 
 function listenToPromos() {
