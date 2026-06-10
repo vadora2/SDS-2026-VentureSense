@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Venture Sense Group Buy</title>
   <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="payment-promos.css" />
 </head>
 <body>
   <header>
@@ -70,7 +71,18 @@
       <section id="ordering-screen" class="hidden">
         <div class="card info">
           <b>How it works</b>
-          <p>Submit a provisional order. Admin confirms stock and payment after cutoff.</p>
+          <p>Submit a provisional order. Group promos unlock as everyone orders, and payment is verified by admin.</p>
+        </div>
+        <div id="promo-panel" class="card promo-panel hidden">
+          <div class="row-between">
+            <div>
+              <p class="kicker">Group promos</p>
+              <h2>Bulk savings progress</h2>
+            </div>
+            <span id="group-progress-total" class="promo-chip">$0.00 group total</span>
+          </div>
+          <div id="promo-list" class="promo-list"></div>
+          <p id="promo-fallback" class="hint hidden">Live promo progress is unavailable right now. Your order can still be submitted.</p>
         </div>
         <div class="filters">
           <select id="category-filter"><option value="all">All categories</option></select>

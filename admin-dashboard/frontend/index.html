@@ -596,6 +596,54 @@
       background: var(--surface);
       border-bottom: 1px solid var(--border);
     }
+
+    .admin-form {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      padding: 16px;
+    }
+
+    .admin-form label {
+      display: grid;
+      gap: 5px;
+      color: var(--text-muted);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .admin-form input,
+    .admin-form select {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      font: inherit;
+      background: var(--white);
+      color: var(--text);
+    }
+
+    .admin-form .full { grid-column: 1 / -1; }
+
+    .promo-admin-row {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: center;
+      font-size: 12px;
+    }
+
+    .promo-admin-row:last-child { border-bottom: none; }
+    .promo-admin-row h4 { font-size: 13px; margin-bottom: 4px; }
+    .promo-admin-meta { color: var(--text-muted); line-height: 1.5; }
+
+    .row-wrap {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
   </style>
 </head>
 <body>
@@ -628,12 +676,12 @@
         </svg>
         Order Management
       </a>
-      <a href="#" class="nav-link" data-page="coupons">
+      <a href="#" class="nav-link" data-page="promos">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/>
           <circle cx="7" cy="7" r="1" fill="currentColor" stroke="none"/>
         </svg>
-        Coupon Codes
+        Promos
       </a>
       <a href="#" class="nav-link" data-page="transactions">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -839,40 +887,63 @@
         </div>
       </div>
 
-      <div id="page-coupons" class="page">
+      <div id="page-promos" class="page">
+        <div class="dash-cols">
+          <div>
+            <div class="card">
+              <div class="card-header">
+                <h3>Create Group Promo</h3>
+                <span>Firestore promos collection</span>
+              </div>
+              <form id="promo-form" class="admin-form">
+                <label>Group buy
+                  <select id="promo-group" required></select>
+                </label>
+                <label>Promo type
+                  <select id="promo-type" required>
+                    <option value="group_spend">Group spend threshold</option>
+                    <option value="item_quantity">Item quantity threshold</option>
+                  </select>
+                </label>
+                <label class="full">Title
+                  <input id="promo-title" placeholder="Spend $100 as a group" required />
+                </label>
+                <label id="promo-amount-wrap">Spend threshold
+                  <input id="promo-threshold-amount" type="number" min="0" step="0.01" placeholder="100" />
+                </label>
+                <label id="promo-product-wrap">Product
+                  <select id="promo-product"></select>
+                </label>
+                <label id="promo-quantity-wrap">Quantity threshold
+                  <input id="promo-threshold-quantity" type="number" min="1" step="1" placeholder="20" />
+                </label>
+                <label>Status
+                  <select id="promo-status">
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
+                </label>
+                <label class="full">Benefit label
+                  <input id="promo-benefit" placeholder="Estimated 10% savings after admin review" required />
+                </label>
+                <div class="full row-wrap">
+                  <button class="btn btn-primary" type="submit">Create promo</button>
+                  <span id="promo-message" style="font-size:12px;color:var(--text-muted)"></span>
+                </div>
+              </form>
+            </div>
+          </div>
 
-        <!-- Page header -->
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
-          <span style="font-size:15px;font-weight:600;color:var(--text)">Coupon Codes</span>
-          <span style="font-size:12px;color:var(--text-muted)">0 active codes · pending backend support</span>
-        </div>
-
-        <!-- Empty state -->
-        <div class="card" style="padding:56px 32px;text-align:center;max-width:480px;margin:0 auto">
-          <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24"
-               fill="none" stroke="var(--text-muted)" stroke-width="1.5"
-               stroke-linecap="round" stroke-linejoin="round"
-               style="margin:0 auto 16px">
-            <!-- ti-ticket -->
-            <path d="M15 5l0 2"/><path d="M15 11l0 2"/><path d="M15 17l0 2"/>
-            <path d="M5 5h14a2 2 0 0 1 2 2v3a2 2 0 0 0 0 4v3a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-3a2 2 0 0 0 0 -4v-3a2 2 0 0 1 2 -2"/>
-          </svg>
-          <h2 style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:8px">No coupon data yet</h2>
-          <p style="font-size:13px;color:var(--text-muted);line-height:1.6;margin-bottom:20px">
-            The current CSV export does not include coupon fields. Ask the backend team to add
-            <code style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-size:12px;font-family:ui-monospace,'Cascadia Code','Fira Code',monospace">coupon_code</code>
-            and
-            <code style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-size:12px;font-family:ui-monospace,'Cascadia Code','Fira Code',monospace">discount_applied</code>
-            to the orders export.
-          </p>
-          <div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:12px 16px;text-align:left;display:inline-block">
-            <code style="font-family:ui-monospace,'Cascadia Code','Fira Code',monospace;font-size:12px;color:var(--text-muted);line-height:1.8">
-              coupon_code<br>
-              discount_applied
-            </code>
+          <div class="right-col">
+            <div class="card">
+              <div class="card-header">
+                <h3>Active Promos</h3>
+                <span id="promo-count-label">0 promos</span>
+              </div>
+              <div id="promo-list"></div>
+            </div>
           </div>
         </div>
-
       </div>
 
       <div id="page-transactions" class="page">

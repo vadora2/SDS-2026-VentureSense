@@ -1,22 +1,26 @@
 import {
   db,
   collection,
+  addDoc,
   getDocs,
   query,
   where,
   onSnapshot,
   doc,
-  updateDoc
+  updateDoc,
+  serverTimestamp
 } from "../../customer-ordering/frontend/firebase-config.js";
 
 // ── Global state ──────────────────────────────────────────────
 let ORDERS = [];
+let PROMOS = [];
+let CATALOGUE = { group_buys: [], products: [] };
 
 // ── Page titles ───────────────────────────────────────────────
 const PAGE_TITLES = {
   dashboard:    'Dashboard',
   orders:       'Order Management',
-  coupons:      'Coupon Codes',
+  promos:       'Promos',
   transactions: 'Transactions',
 };
 
@@ -41,6 +45,11 @@ document.querySelectorAll('.nav-link').forEach(link => {
   });
 });
 
+const promoForm = document.getElementById('promo-form');
+const promoType = document.getElementById('promo-type');
+if (promoForm) promoForm.addEventListener('submit', createPromo);
+if (promoType) promoType.addEventListener('change', updatePromoTypeFields);
+
 // ── CSV loading ───────────────────────────────────────────────
 function showError(msg) {
   const banner = document.getElementById('error-banner');
@@ -57,6 +66,7 @@ function renderAll() {
   updateTopbarMeta();
   renderDashboard();
   renderOrderManagement();
+  renderPromosPage();
   renderTransactions();
   document.getElementById('loading-overlay').classList.add('hidden');
 }
@@ -300,6 +310,138 @@ function txDraftReminders() {
   }
 }
 
+function initPromoControls() {
+  const groupSelect = document.getElementById('promo-group');
+  const productSelect = document.getElementById('promo-product');
+  if (!groupSelect || !productSelect) return;
+
+  groupSelect.innerHTML = (CATALOGUE.group_buys || []).map(group => (
+    `<option value="${group.id}">${group.group_buy_number} - ${group.title}</option>`
+  )).join('');
+
+  productSelect.innerHTML = (CATALOGUE.products || []).map(product => (
+    `<option value="${product.id}">${product.name} (${product.sku})</option>`
+  )).join('');
+
+  updatePromoTypeFields();
+}
+
+function updatePromoTypeFields() {
+  const type = document.getElementById('promo-type')?.value || 'group_spend';
+  const amountWrap = document.getElementById('promo-amount-wrap');
+  const productWrap = document.getElementById('promo-product-wrap');
+  const quantityWrap = document.getElementById('promo-quantity-wrap');
+  if (!amountWrap || !productWrap || !quantityWrap) return;
+  amountWrap.style.display = type === 'group_spend' ? 'grid' : 'none';
+  productWrap.style.display = type === 'item_quantity' ? 'grid' : 'none';
+  quantityWrap.style.display = type === 'item_quantity' ? 'grid' : 'none';
+}
+
+function groupSubtotal(groupBuyId) {
+  return ORDERS
+    .filter(order => order.group_buy_id === groupBuyId)
+    .reduce((sum, order) => sum + Number(order.subtotal || 0), 0);
+}
+
+function groupProductQuantity(groupBuyId, productId) {
+  return ORDERS
+    .filter(order => order.group_buy_id === groupBuyId)
+    .reduce((sum, order) => {
+      const rawItems = Array.isArray(order.raw_items) ? order.raw_items : [];
+      return sum + rawItems
+        .filter(item => item.product_id === productId)
+        .reduce((itemSum, item) => itemSum + Number(item.quantity || 0), 0);
+    }, 0);
+}
+
+function promoProgress(promo) {
+  if (promo.promo_type === 'item_quantity') {
+    const threshold = Number(promo.threshold_quantity || 0);
+    const current = groupProductQuantity(promo.group_buy_id, promo.product_id);
+    const product = (CATALOGUE.products || []).find(item => item.id === promo.product_id);
+    return {
+      current,
+      threshold,
+      remaining: Math.max(threshold - current, 0),
+      unlocked: threshold > 0 && current >= threshold,
+      product_name: product?.name || promo.product_name || promo.product_id || 'selected item'
+    };
+  }
+
+  const threshold = Number(promo.threshold_amount || 0);
+  const current = groupSubtotal(promo.group_buy_id);
+  return {
+    current,
+    threshold,
+    remaining: Math.max(threshold - current, 0),
+    unlocked: threshold > 0 && current >= threshold
+  };
+}
+
+function renderPromosPage() {
+  const list = document.getElementById('promo-list');
+  const count = document.getElementById('promo-count-label');
+  if (!list || !count) return;
+
+  const activePromos = PROMOS.filter(promo => (promo.status || 'active') === 'active');
+  count.textContent = activePromos.length + ' promo' + (activePromos.length !== 1 ? 's' : '');
+
+  list.innerHTML = activePromos.map(promo => {
+    const progress = promoProgress(promo);
+    const group = (CATALOGUE.group_buys || []).find(item => item.id === promo.group_buy_id);
+    const target = promo.promo_type === 'item_quantity'
+      ? `${progress.current}/${progress.threshold} ${progress.product_name}`
+      : `$${progress.current.toFixed(2)}/$${progress.threshold.toFixed(2)}`;
+    return `<div class="promo-admin-row">
+      <div>
+        <h4>${promo.title || 'Group promo'}</h4>
+        <div class="promo-admin-meta">${group?.group_buy_number || promo.group_buy_id} · ${promo.promo_type.replace('_', ' ')} · ${target}<br>${promo.benefit_label || ''}</div>
+      </div>
+      ${progress.unlocked ? '<span class="pill pill-green">unlocked</span>' : '<span class="pill pill-amber">in progress</span>'}
+    </div>`;
+  }).join('') || '<div class="promo-admin-row"><span class="promo-admin-meta">No active promos yet.</span></div>';
+}
+
+async function createPromo(event) {
+  event.preventDefault();
+  const type = document.getElementById('promo-type').value;
+  const groupId = document.getElementById('promo-group').value;
+  const productId = document.getElementById('promo-product').value;
+  const product = (CATALOGUE.products || []).find(item => item.id === productId);
+  const payload = {
+    group_buy_id: groupId,
+    title: document.getElementById('promo-title').value.trim(),
+    promo_type: type,
+    benefit_label: document.getElementById('promo-benefit').value.trim(),
+    status: document.getElementById('promo-status').value,
+    threshold_amount: type === 'group_spend' ? Number(document.getElementById('promo-threshold-amount').value || 0) : 0,
+    product_id: type === 'item_quantity' ? productId : '',
+    product_name: type === 'item_quantity' ? (product?.name || '') : '',
+    threshold_quantity: type === 'item_quantity' ? Number(document.getElementById('promo-threshold-quantity').value || 0) : 0,
+    created_at: serverTimestamp(),
+    updated_at: new Date().toISOString()
+  };
+
+  if (type === 'group_spend' && payload.threshold_amount <= 0) {
+    document.getElementById('promo-message').textContent = 'Enter a spend threshold.';
+    return;
+  }
+  if (type === 'item_quantity' && (!payload.product_id || payload.threshold_quantity <= 0)) {
+    document.getElementById('promo-message').textContent = 'Choose a product and quantity threshold.';
+    return;
+  }
+
+  try {
+    await addDoc(collection(db, 'promos'), payload);
+    promoForm.reset();
+    updatePromoTypeFields();
+    document.getElementById('promo-message').textContent = 'Promo created.';
+  } catch (error) {
+    console.error('Failed to create promo:', error);
+    document.getElementById('promo-message').textContent = 'Could not create promo. Check Firebase rules.';
+  }
+}
+
 function mapFirebaseOrderToDashboardRow(order) {
   return {
     firebase_doc_id: order.firebase_doc_id,
@@ -313,6 +455,7 @@ function mapFirebaseOrderToDashboardRow(order) {
     items: Array.isArray(order.items)
       ? order.items.map(item => `${item.product_name} x${item.quantity}`).join('; ')
       : '',
+    raw_items: Array.isArray(order.items) ? order.items : [],
     subtotal: order.subtotal,
     payment_status: order.payment_status,
     fulfillment_status: order.fulfillment_status,
@@ -392,7 +535,39 @@ function loadOrdersFromCSV() {
   });
 }
 
+async function loadCatalogue() {
+  try {
+    const response = await fetch('../../customer-ordering/frontend/catalogue.json');
+    CATALOGUE = await response.json();
+    const registered = JSON.parse(localStorage.getItem('ventureSenseRegisteredGroupBuys') || '[]');
+    CATALOGUE.group_buys = [...(CATALOGUE.group_buys || []), ...registered];
+  } catch (error) {
+    console.error('Failed to load catalogue for promos:', error);
+    CATALOGUE = { group_buys: [], products: [] };
+  }
+  initPromoControls();
+  renderPromosPage();
+}
+
+function listenToPromos() {
+  try {
+    return onSnapshot(collection(db, 'promos'), snapshot => {
+      PROMOS = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+      renderPromosPage();
+    }, error => {
+      console.error('Promo listener failed:', error);
+      PROMOS = [];
+      renderPromosPage();
+    });
+  } catch (error) {
+    console.error('Could not start promo listener:', error);
+    return null;
+  }
+}
+
 async function initOrders() {
+  await loadCatalogue();
+  listenToPromos();
   const firebaseOrders = await loadOrdersFromFirebase();
 
   if (firebaseOrders && firebaseOrders.length > 0) {

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Venture Sense Payment</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="payment-promos.css" />
+</head>
+<body>
+  <header>
+    <p class="kicker">Venture Sense Prototype</p>
+    <h1>Payment</h1>
+    <p>Submit your placeholder payment confirmation. Admin will verify before marking the order as paid.</p>
+  </header>
+
+  <main class="payment-shell">
+    <section class="payment-grid">
+      <article class="card">
+        <p class="kicker">Order payment</p>
+        <h2 id="payment-title">Loading order...</h2>
+        <div id="payment-status" class="status-note hidden"></div>
+        <div id="order-summary"></div>
+        <div class="row-wrap">
+          <button id="payment-button" class="primary" type="button" disabled>I have made payment</button>
+          <a class="secondary" href="index.html" style="text-decoration:none">Back to ordering</a>
+        </div>
+      </article>
+
+      <aside class="card">
+        <p class="kicker">Placeholder instructions</p>
+        <h2>PayNow demo</h2>
+        <div class="payment-box">
+          <code>PayNow UEN: 2026VENTURE
+Reference: your order ID
+Amount: estimated final total</code>
+        </div>
+        <p class="hint">No real money is collected here. This only updates the dashboard payment status to payment sent.</p>
+      </aside>
+    </section>
+  </main>
+
+  <script type="module" src="payment.js"></script>
+</body>
+</html>
