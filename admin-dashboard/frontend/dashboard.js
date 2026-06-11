@@ -16,6 +16,9 @@ import {
 let ORDERS = [];
 let PROMOS = [];
 let CATALOGUE = { group_buys: [], products: [] };
+let ordersSource = 'csv';
+let approvingOrderId = null;
+let orderActionMessage = '';
 
 // ── Page titles ───────────────────────────────────────────────
 const PAGE_TITLES = {
@@ -175,9 +178,36 @@ function omInitials(name) {
   return (name || '?').trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
 }
 
+function omActionCell(order) {
+  if (ordersSource !== 'firebase') {
+    return '<span class="action-note">CSV fallback</span>';
+  }
+
+  if (!order.firebase_doc_id) {
+    return '<span class="action-note">Missing Firebase ID</span>';
+  }
+
+  if (order.payment_status === 'payment_sent') {
+    const isApproving = approvingOrderId === order.firebase_doc_id;
+    return `<button class="btn btn-primary btn-small" ${isApproving ? 'disabled' : ''} onclick="omApprovePayment('${order.firebase_doc_id}')">${isApproving ? 'Approving...' : 'Approve payment'}</button>`;
+  }
+
+  if (order.payment_status === 'unpaid') {
+    return '<span class="action-note">Waiting for customer</span>';
+  }
+
+  if (order.payment_status === 'paid') {
+    return '<span class="action-note action-ok">Payment approved</span>';
+  }
+
+  return '<span class="action-note">No action</span>';
+}
+
 function omRenderTable() {
   const rows = omFilteredOrders();
   document.getElementById('om-count').textContent = rows.length;
+  const messageEl = document.getElementById('om-action-message');
+  if (messageEl) messageEl.textContent = orderActionMessage;
 
   document.getElementById('om-tbody').innerHTML = rows.map(o => {
     const shortId = (o.order_id || '').slice(-6);
@@ -194,8 +224,9 @@ function omRenderTable() {
       <td>${subtotal}</td>
       <td>${paymentPill(o.payment_status)}</td>
       <td>${fulfillmentPill(o.fulfillment_status)}</td>
+      <td>${omActionCell(o)}</td>
     </tr>`;
-  }).join('') || `<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:24px">No orders</td></tr>`;
+  }).join('') || `<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:24px">No orders</td></tr>`;
 }
 
 function omRenderSidebar() {
@@ -600,6 +631,7 @@ function listenToOrders(groupBuyId = null) {
     }
 
     ORDERS = firebaseOrders.map(mapFirebaseOrderToDashboardRow);
+    ordersSource = 'firebase';
     console.log('Realtime Firebase orders:', ORDERS);
     renderAll();
   }, (error) => {
@@ -616,7 +648,36 @@ async function updateOrderStatus(firebaseDocId, updates) {
   });
 }
 
+async function omApprovePayment(firebaseDocId) {
+  if (!firebaseDocId || ordersSource !== 'firebase') return;
+
+  const now = new Date().toISOString();
+  approvingOrderId = firebaseDocId;
+  orderActionMessage = 'Approving payment...';
+  omRenderTable();
+  let approved = false;
+
+  try {
+    await updateOrderStatus(firebaseDocId, {
+      payment_status: 'paid',
+      paid_at: now,
+      payment_verified_at: now,
+      payment_verified_by: 'admin_demo'
+    });
+    approved = true;
+    orderActionMessage = 'Payment approved.';
+  } catch (error) {
+    console.error('Failed to approve payment:', error);
+    orderActionMessage = 'Could not approve payment. Check Firebase rules.';
+  } finally {
+    approvingOrderId = null;
+    if (!approved) omRenderTable();
+  }
+}
+
 function loadOrdersFromCSV() {
+  ordersSource = 'csv';
+  approvingOrderId = null;
   Papa.parse('../../shared/mock-data/orders.csv', {
     download: true,
     header: true,
@@ -749,5 +810,6 @@ window.omExportCSV = omExportCSV;
 window.txDraftReminders = txDraftReminders;
 window.txExportStatement = txExportStatement;
 window.updateOrderStatus = updateOrderStatus;
+window.omApprovePayment = omApprovePayment;
 
 initOrders();

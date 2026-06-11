@@ -434,6 +434,17 @@
 
     .btn-primary:hover { background: var(--primary-dark); }
 
+    .btn:disabled {
+      opacity: 0.65;
+      cursor: not-allowed;
+    }
+
+    .btn-small {
+      padding: 5px 10px;
+      font-size: 11px;
+      white-space: nowrap;
+    }
+
     .btn-secondary {
       background: var(--surface);
       color: var(--text);
@@ -441,6 +452,14 @@
     }
 
     .btn-secondary:hover { background: var(--border); }
+
+    .action-note {
+      color: var(--text-muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .action-ok { color: var(--success); }
 
     .data-footer {
       font-size: 11px;
@@ -861,12 +880,14 @@
                     <th>Subtotal</th>
                     <th>Payment</th>
                     <th>Fulfillment</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody id="om-tbody"></tbody>
               </table>
               <div class="card-footer">
                 <button class="btn btn-primary" onclick="omExportCSV()">Export CSV</button>
+                <span id="om-action-message" class="action-note"></span>
               </div>
               <div class="data-footer">
                 <span class="warn-tag">delivery_address not in CSV fallback</span>
