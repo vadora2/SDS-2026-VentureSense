@@ -620,6 +620,13 @@
         </svg>
         Dashboard
       </a>
+      <a href="#" class="nav-link" data-page="setup">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+          <circle cx="12" cy="12" r="3"/>
+        </svg>
+        Group Buys
+      </a>
       <a href="#" class="nav-link" data-page="orders">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
@@ -627,13 +634,6 @@
           <line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/>
         </svg>
         Order Management
-      </a>
-      <a href="#" class="nav-link" data-page="coupons">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/>
-          <circle cx="7" cy="7" r="1" fill="currentColor" stroke="none"/>
-        </svg>
-        Coupon Codes
       </a>
       <a href="#" class="nav-link" data-page="transactions">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -775,7 +775,33 @@
         </div>
       </div>
 
-      <div id="page-orders" class="page">
+      <div id="page-orders" class="page" style="position:relative">
+
+        <!-- Review queue modal backdrop (absolute, not fixed) -->
+        <div id="review-modal-backdrop" onclick="REVIEW.closeModal(event)" style="display:none;position:absolute;top:0;left:0;width:100%;height:100%;min-height:100vh;background:rgba(0,0,0,0.45);z-index:200">
+          <div onclick="event.stopPropagation()" style="background:var(--white);border-radius:12px;padding:28px;max-width:480px;margin:80px auto 0">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+              <span style="font-weight:600;font-size:15px">Edit parsed order</span>
+              <button onclick="REVIEW.closeModal()" style="border:none;background:none;font-size:20px;cursor:pointer;color:var(--text-muted);line-height:1;padding:0">×</button>
+            </div>
+            <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:12px;font-style:italic;color:var(--text-muted);margin-bottom:14px" id="review-modal-raw"></div>
+            <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:6px">Parsed order</label>
+            <input id="review-modal-input" type="text" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;outline:none;margin-bottom:16px">
+            <div style="display:flex;gap:10px">
+              <button class="btn btn-primary" style="font-size:12px;padding:5px 12px" onclick="REVIEW.saveAndApprove()">Save &amp; approve</button>
+              <button class="btn btn-secondary" style="font-size:12px;padding:5px 12px" onclick="REVIEW.closeModal()">Cancel</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Needs review card -->
+        <div class="card" style="margin-bottom:20px">
+          <div class="card-header">
+            <h3>Needs review <span id="review-badge" class="pill pill-amber" style="margin-left:8px;font-size:11px"></span></h3>
+          </div>
+          <div id="review-body"></div>
+        </div>
+
         <div class="dash-cols">
 
           <!-- Left: full-width orders table -->
@@ -839,37 +865,92 @@
         </div>
       </div>
 
-      <div id="page-coupons" class="page">
+      <div id="page-setup" class="page" style="position:relative;min-height:100vh">
 
-        <!-- Page header -->
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
-          <span style="font-size:15px;font-weight:600;color:var(--text)">Coupon Codes</span>
-          <span style="font-size:12px;color:var(--text-muted)">0 active codes · pending backend support</span>
+        <!-- LIST VIEW -->
+        <div id="setup-list-view">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+            <span style="font-size:15px;font-weight:600;color:var(--text)">Group Buys</span>
+            <button class="btn btn-primary" onclick="SETUP.showCreate()">＋ Add Group Buy</button>
+          </div>
+          <div id="setup-success-banner" style="display:none;background:#D1FAE5;color:#065F46;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:12px">
+            Group buy created — catalogue ready to post to WhatsApp.
+          </div>
+          <div class="card">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Status</th>
+                  <th>Items</th>
+                  <th>Cutoff</th>
+                  <th>Slot</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="setup-table-body"></tbody>
+            </table>
+          </div>
         </div>
 
-        <!-- Empty state -->
-        <div class="card" style="padding:56px 32px;text-align:center;max-width:480px;margin:0 auto">
-          <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24"
-               fill="none" stroke="var(--text-muted)" stroke-width="1.5"
-               stroke-linecap="round" stroke-linejoin="round"
-               style="margin:0 auto 16px">
-            <!-- ti-ticket -->
-            <path d="M15 5l0 2"/><path d="M15 11l0 2"/><path d="M15 17l0 2"/>
-            <path d="M5 5h14a2 2 0 0 1 2 2v3a2 2 0 0 0 0 4v3a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-3a2 2 0 0 0 0 -4v-3a2 2 0 0 1 2 -2"/>
-          </svg>
-          <h2 style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:8px">No coupon data yet</h2>
-          <p style="font-size:13px;color:var(--text-muted);line-height:1.6;margin-bottom:20px">
-            The current CSV export does not include coupon fields. Ask the backend team to add
-            <code style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-size:12px;font-family:ui-monospace,'Cascadia Code','Fira Code',monospace">coupon_code</code>
-            and
-            <code style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-size:12px;font-family:ui-monospace,'Cascadia Code','Fira Code',monospace">discount_applied</code>
-            to the orders export.
-          </p>
-          <div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:12px 16px;text-align:left;display:inline-block">
-            <code style="font-family:ui-monospace,'Cascadia Code','Fira Code',monospace;font-size:12px;color:var(--text-muted);line-height:1.8">
-              coupon_code<br>
-              discount_applied
-            </code>
+        <!-- CREATE VIEW -->
+        <div id="setup-create-view" style="display:none">
+          <a onclick="SETUP.showList()" style="display:inline-block;margin-bottom:16px;color:var(--primary);cursor:pointer;font-size:13px;text-decoration:none">← Back to list</a>
+          <div class="card">
+            <div class="card-header"><h3>New group buy</h3></div>
+            <div style="padding:20px;display:flex;flex-direction:column;gap:16px">
+              <div>
+                <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px">Group buy name</label>
+                <input id="setup-name" type="text" placeholder="e.g. GB-004 March Greens" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;outline:none">
+                <div id="setup-name-error" style="display:none;color:#DC2626;font-size:12px;margin-top:4px">Name is required</div>
+              </div>
+              <div>
+                <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px">Products</label>
+                <div id="setup-products" style="display:flex;flex-direction:column;gap:8px"></div>
+                <button class="btn btn-secondary" onclick="SETUP.addProductRow()" style="width:100%;margin-top:8px;font-size:12px">+ Add product</button>
+              </div>
+              <div>
+                <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px">Order cutoff</label>
+                <select id="setup-cutoff" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;outline:none">
+                  <option>Monday 10 PM</option>
+                  <option>Tuesday 10 PM</option>
+                  <option>Friday 6 PM</option>
+                </select>
+              </div>
+              <div>
+                <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px">Collection slot</label>
+                <select id="setup-slot" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;outline:none">
+                  <option>Fri AM</option>
+                  <option>Fri PM</option>
+                  <option>Sat AM</option>
+                  <option>Sat PM</option>
+                  <option>Sun AM</option>
+                  <option>Sun PM</option>
+                </select>
+              </div>
+              <div>
+                <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px">Group discount rule</label>
+                <input type="text" placeholder="e.g. 15% off when ≥ 10 units per SKU" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;outline:none">
+              </div>
+            </div>
+            <div class="card-footer">
+              <button class="btn btn-primary" onclick="SETUP.createGroupBuy()">Create group buy</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- WHATSAPP MODAL -->
+        <div id="setup-modal-backdrop" onclick="SETUP.closeModal(event)" style="display:none;position:absolute;top:0;left:0;width:100%;height:100%;min-height:100vh;background:rgba(0,0,0,0.45);z-index:200">
+          <div onclick="event.stopPropagation()" style="background:var(--white);border-radius:12px;padding:28px;max-width:480px;margin:80px auto 0">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+              <span style="font-weight:600;font-size:15px">WhatsApp preview</span>
+              <button onclick="SETUP.closeModal()" style="border:none;background:none;font-size:20px;cursor:pointer;color:var(--text-muted);line-height:1;padding:0">×</button>
+            </div>
+            <textarea id="setup-modal-text" style="width:100%;min-height:140px;border:1px solid var(--border);border-radius:8px;padding:10px;font-size:13px;line-height:1.6;font-family:inherit;resize:vertical;outline:none"></textarea>
+            <div style="display:flex;gap:10px;margin-top:12px">
+              <button class="btn btn-secondary" id="setup-copy-btn" onclick="SETUP.copyMessage()">Copy message</button>
+              <button class="btn btn-primary" onclick="SETUP.sendWhatsApp()">Send via WhatsApp</button>
+            </div>
           </div>
         </div>
 
@@ -936,8 +1017,8 @@
     // ── Page titles ───────────────────────────────────────────────
     const PAGE_TITLES = {
       dashboard:    'Dashboard',
+      setup:        'Group Buys',
       orders:       'Order Management',
-      coupons:      'Coupon Codes',
       transactions: 'Transactions',
     };
 
@@ -1053,6 +1134,81 @@
       `).join('') || '<div class="group-row"><div class="group-id" style="color:var(--text-muted)">No data</div></div>';
     }
 
+    // ── Ambiguous order review queue ──────────────────────────────
+    const REVIEW = {
+      items: [
+        { buyer: 'Marcus Lim',   phone: '+65 9123 4567', raw_message: '2 eggs, and the usual milk pls',    parser_guess: 'Eggs x 2, Milk x ?',           reason: "Quantity unclear: 'usual milk'" },
+        { buyer: 'Priya N.',     phone: '+65 8234 5678', raw_message: 'can i get 3 of the rice and some tofu', parser_guess: 'Brown rice x 3, Tofu x ?',   reason: "Quantity unclear: 'some tofu'" },
+        { buyer: 'Daniel Wong',  phone: '+65 9345 6789', raw_message: '1 oat milk 2 eggs',                 parser_guess: 'Eggs x 2, Oat milk x 1',         reason: "Ambiguous SKU: 'oat milk' not in catalogue (closest: Milk)" },
+      ],
+      editingIndex: null,
+
+      render() {
+        const badge = document.getElementById('review-badge');
+        const body  = document.getElementById('review-body');
+        if (!badge || !body) return;
+
+        const n = this.items.length;
+        if (n === 0) {
+          badge.style.display = 'none';
+          body.innerHTML = '<div style="text-align:center;padding:32px;font-size:13px;color:var(--text-muted)">No orders need review — all parsed cleanly ✓</div>';
+          return;
+        }
+
+        badge.style.display = 'inline-block';
+        badge.textContent   = n;
+
+        body.innerHTML = this.items.map((item, i) => `
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:14px 18px;border-bottom:1px solid var(--border)${i === this.items.length - 1 ? ';border-bottom:none' : ''}">
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:5px">
+                <span style="font-weight:600;font-size:13px">${item.buyer}</span>
+                <span style="font-size:11px;color:var(--text-muted);margin-left:12px">${item.phone}</span>
+              </div>
+              <div style="font-size:12px;font-style:italic;color:var(--text);margin-bottom:4px">"${item.raw_message}"</div>
+              <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">AI parsed: ${item.parser_guess}</div>
+              <span class="warn-tag">${item.reason}</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
+              <button class="btn btn-primary" style="font-size:12px;padding:5px 12px" onclick="REVIEW.approve(${i})">Approve</button>
+              <button class="btn btn-secondary" style="font-size:12px;padding:5px 12px" onclick="REVIEW.openEdit(${i})">Edit</button>
+            </div>
+          </div>
+        `).join('');
+      },
+
+      approve(i) {
+        this.items.splice(i, 1);
+        this.render();
+      },
+
+      openEdit(i) {
+        this.editingIndex = i;
+        const item = this.items[i];
+        document.getElementById('review-modal-raw').textContent   = item.raw_message;
+        document.getElementById('review-modal-input').value       = item.parser_guess;
+        document.getElementById('review-modal-backdrop').style.display = 'block';
+      },
+
+      closeModal(e) {
+        if (!e || e.target === document.getElementById('review-modal-backdrop')) {
+          document.getElementById('review-modal-backdrop').style.display = 'none';
+          this.editingIndex = null;
+        }
+      },
+
+      saveAndApprove() {
+        if (this.editingIndex !== null) {
+          this.items.splice(this.editingIndex, 1);
+          this.editingIndex = null;
+        }
+        document.getElementById('review-modal-backdrop').style.display = 'none';
+        this.render();
+      },
+    };
+
+    REVIEW.render();
+
     // ── Order Management ──────────────────────────────────────────
     let omFilter = 'all';
 
@@ -1154,6 +1310,126 @@
       a.click();
       URL.revokeObjectURL(a.href);
     }
+
+    // ── Group Buy Setup ───────────────────────────────────────────
+    const SETUP = {
+      entries: [
+        { name: 'GB-001 Jan Greens', status: 'Done',    products: [{name:'Spinach'},{name:'Kale'},{name:'Brown rice'}], cutoff: 'Mon 10 PM', slot: 'Sat AM' },
+        { name: 'GB-002 Feb Greens', status: 'Ongoing', products: [{name:'Eggs'},{name:'Milk'},{name:'Brown rice'}],    cutoff: 'Mon 10 PM', slot: 'Sat AM' },
+        { name: 'GB-003 Mar Greens', status: 'Queued',  products: [{name:'Tofu'},{name:'Oats'}],                       cutoff: 'Fri 6 PM',  slot: 'Sun AM' },
+      ],
+
+      statusPill(s) {
+        if (s === 'Done')    return '<span class="pill pill-green">Done</span>';
+        if (s === 'Ongoing') return '<span class="pill pill-blue">Ongoing</span>';
+        return '<span class="pill pill-gray">Queued</span>';
+      },
+
+      renderTable() {
+        const tbody = document.getElementById('setup-table-body');
+        if (!tbody) return;
+        tbody.innerHTML = this.entries.map((e, i) => {
+          const items  = e.products.map(p => p.name).join(', ');
+          const isDone = e.status === 'Done';
+          return `<tr>
+            <td style="font-weight:500">${e.name}</td>
+            <td>${this.statusPill(e.status)}</td>
+            <td class="cell-items" style="max-width:200px" title="${items}">${items}</td>
+            <td>${e.cutoff}</td>
+            <td>${e.slot}</td>
+            <td style="white-space:nowrap">
+              <button class="btn btn-secondary" style="font-size:12px;padding:4px 10px;margin-right:4px" onclick="SETUP.openModal(${i})">WhatsApp</button>
+              <button class="btn btn-secondary" style="font-size:12px;padding:4px 10px${isDone ? ';opacity:0.5' : ''}" ${isDone ? 'disabled' : ''}>Edit</button>
+            </td>
+          </tr>`;
+        }).join('');
+      },
+
+      showList() {
+        document.getElementById('setup-list-view').style.display = '';
+        document.getElementById('setup-create-view').style.display = 'none';
+        this.renderTable();
+      },
+
+      showCreate() {
+        document.getElementById('setup-list-view').style.display = 'none';
+        document.getElementById('setup-create-view').style.display = '';
+        document.getElementById('setup-name').value = '';
+        document.getElementById('setup-name-error').style.display = 'none';
+        const pd = document.getElementById('setup-products');
+        pd.innerHTML = '';
+        this.addProductRow();
+        this.addProductRow();
+      },
+
+      addProductRow() {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;gap:8px;align-items:center';
+        row.innerHTML = `
+          <input type="text" placeholder="Product name" style="flex:2;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;outline:none">
+          <input type="text" placeholder="Aliases, comma-separated" style="flex:2;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;outline:none">
+          <div style="display:flex;align-items:center;border:1px solid var(--border);border-radius:8px;overflow:hidden;flex:1">
+            <span style="padding:0 8px;color:var(--text-muted);font-size:13px;border-right:1px solid var(--border)">$</span>
+            <input type="number" placeholder="0.00" min="0" step="0.01" style="flex:1;padding:8px 8px;border:none;font-size:13px;font-family:inherit;outline:none;width:100%">
+          </div>
+          <button class="btn btn-secondary" onclick="this.closest('div[style]').remove()" style="font-size:11px;padding:3px 8px;flex-shrink:0">×</button>`;
+        document.getElementById('setup-products').appendChild(row);
+      },
+
+      createGroupBuy() {
+        const nameEl  = document.getElementById('setup-name');
+        const nameErr = document.getElementById('setup-name-error');
+        if (!nameEl.value.trim()) { nameErr.style.display = 'block'; return; }
+        nameErr.style.display = 'none';
+
+        const products = Array.from(document.querySelectorAll('#setup-products > div')).map(r => {
+          const val = r.querySelectorAll('input')[0].value.trim();
+          return val ? { name: val } : null;
+        }).filter(Boolean);
+
+        this.entries.unshift({
+          name:     nameEl.value.trim(),
+          status:   'Queued',
+          products: products.length ? products : [{ name: '—' }],
+          cutoff:   document.getElementById('setup-cutoff').value,
+          slot:     document.getElementById('setup-slot').value,
+        });
+
+        this.showList();
+        const banner = document.getElementById('setup-success-banner');
+        banner.style.display = 'block';
+        setTimeout(() => { banner.style.display = 'none'; }, 3000);
+      },
+
+      openModal(i) {
+        const e    = this.entries[i];
+        const list = e.products.map(p => `• ${p.name}`).join('\n');
+        document.getElementById('setup-modal-text').value =
+          `🌿 VentureSense — ${e.name}\n\nHi! We're running a group buy. Here's what's available:\n\n${list}\n\nOrder cutoff: ${e.cutoff}\nCollection slot: ${e.slot}\n\nReply with your order, e.g. "2 Eggs and 1 Milk"\nReply STOP to opt out.`;
+        document.getElementById('setup-copy-btn').textContent = 'Copy message';
+        document.getElementById('setup-modal-backdrop').style.display = 'block';
+      },
+
+      closeModal(e) {
+        if (!e || e.target === document.getElementById('setup-modal-backdrop')) {
+          document.getElementById('setup-modal-backdrop').style.display = 'none';
+        }
+      },
+
+      copyMessage() {
+        navigator.clipboard.writeText(document.getElementById('setup-modal-text').value).then(() => {
+          const btn = document.getElementById('setup-copy-btn');
+          btn.textContent = 'Copied ✓';
+          setTimeout(() => { btn.textContent = 'Copy message'; }, 1500);
+        });
+      },
+
+      sendWhatsApp() {
+        window.open('https://wa.me/?text=' + encodeURIComponent(document.getElementById('setup-modal-text').value), '_blank');
+      },
+    };
+
+    SETUP.renderTable();
 
     // ── Transactions ──────────────────────────────────────────────
     function renderTransactions() {
