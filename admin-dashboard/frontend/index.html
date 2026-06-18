@@ -647,7 +647,7 @@
           <line x1="12" y1="1" x2="12" y2="23"/>
           <path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
         </svg>
-        Transactions
+        Transactions &amp; Payment
       </a>
     </nav>
   </aside>
@@ -965,6 +965,12 @@
 
       <div id="page-transactions" class="page">
 
+        <!-- Current round card -->
+        <div class="card" style="margin-bottom:24px">
+          <div class="card-header"><h3>Current round</h3></div>
+          <div id="round-body" style="padding:18px 20px"></div>
+        </div>
+
         <!-- Metric cards -->
         <div class="metric-row" style="margin-bottom:24px">
           <div class="metric-card">
@@ -1056,7 +1062,7 @@
       setup:        'Group Buys',
       orders:       'Order Management',
       fulfilment:   'Fulfilment',
-      transactions: 'Transactions',
+      transactions: 'Transactions & Payment',
     };
 
     // ── Routing ───────────────────────────────────────────────────
@@ -1526,6 +1532,84 @@
     }
 
     // ── Transactions ──────────────────────────────────────────────
+    let ROUND_STATE = 'open';
+
+    function renderRound() {
+      const body    = document.getElementById('round-body');
+      if (!body) return;
+      const total   = ORDERS.reduce((s, o) => s + (parseFloat(o.subtotal) || 0), 0);
+      const units   = ORDERS.reduce((s, o) => {
+        (o.items || '').split(';').forEach(seg => {
+          const m = seg.trim().match(/x\s*(\d+)$/i);
+          if (m) s += parseInt(m[1], 10);
+        });
+        return s;
+      }, 0);
+
+      if (ROUND_STATE === 'open') {
+        body.innerHTML = `
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+            <span class="pill pill-blue">Round open</span>
+            <span style="font-size:13px;color:var(--text-muted)">Order window is still accepting orders.</span>
+          </div>
+          <div style="font-size:13px;color:var(--text-muted);margin-bottom:14px">
+            ${ORDERS.length} orders · ${units} units · $${total.toFixed(2)}
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-primary" onclick="ROUND_STATE='closed';renderRound()">Close round</button>
+          </div>`;
+
+      } else if (ROUND_STATE === 'closed') {
+        const groups = {};
+        ORDERS.forEach(o => {
+          const g = o.group_buy_id || 'unknown';
+          groups[g] = (groups[g] || 0) + 1;
+        });
+        const groupRows = Object.entries(groups).map(([gid, cnt]) => `
+          <div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:13px">
+            <span style="font-weight:600">Group ${gid}</span>
+            <span style="color:var(--text-muted)"> — ${cnt} order${cnt !== 1 ? 's' : ''}</span>
+            <div style="font-size:12px;color:#065F46;margin-top:2px">Discount applied: 15% (≥10 units)</div>
+          </div>`).join('');
+        body.innerHTML = `
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+            <span class="pill pill-amber">Round closed</span>
+            <span style="font-size:13px;color:var(--text-muted)">Orders locked. Review discounts, then generate payment.</span>
+          </div>
+          <div style="margin-bottom:14px">${groupRows}</div>
+          <div style="display:flex;gap:8px;margin-top:14px">
+            <button class="btn btn-primary" onclick="ROUND_STATE='payment_sent';renderRound()">Generate payment links</button>
+            <button class="btn btn-secondary" onclick="ROUND_STATE='open';renderRound()">Reopen round</button>
+          </div>`;
+
+      } else if (ROUND_STATE === 'payment_sent') {
+        body.innerHTML = `
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+            <span class="pill pill-green">Payment links sent</span>
+            <span style="font-size:13px;color:var(--text-muted)">Buyers notified. Awaiting payment by Tue 9 AM.</span>
+          </div>
+          <div style="font-size:13px;color:var(--text-muted);margin-bottom:14px">
+            ${ORDERS.length} payment requests generated · $${total.toFixed(2)} total due.
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-primary" onclick="roundDownloadPaymentCSV()">Download payment CSV</button>
+            <button class="btn btn-secondary" onclick="ROUND_STATE='open';renderRound()">Reset round</button>
+          </div>`;
+      }
+    }
+
+    function roundDownloadPaymentCSV() {
+      const cols  = ['buyer_name', 'phone', 'items', 'subtotal', 'payment_status'];
+      const lines = [cols.join(',')];
+      ORDERS.forEach(o => lines.push(cols.map(c => JSON.stringify(o[c] ?? '')).join(',')));
+      const blob  = new Blob([lines.join('\n')], { type: 'text/csv' });
+      const a     = document.createElement('a');
+      a.href      = URL.createObjectURL(blob);
+      a.download  = 'payment-requests.csv';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
     function renderTransactions() {
       const total   = ORDERS.reduce((s, o) => s + (parseFloat(o.subtotal) || 0), 0);
       const unpaid  = ORDERS.filter(o => o.payment_status === 'unpaid')
@@ -1539,6 +1623,8 @@
       document.getElementById('tx-paid-value').textContent = '$' + paid.toFixed(2);
       document.getElementById('tx-groups').textContent = groups;
       document.getElementById('tx-count-label').textContent = ORDERS.length + ' entries';
+
+      renderRound();
 
       document.getElementById('tx-tbody').innerHTML = ORDERS.map(o => {
         const isPaid   = o.payment_status === 'paid';
