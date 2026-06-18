@@ -801,6 +801,35 @@
           </div>
         </div>
 
+        <div id="clarify-modal-backdrop"
+             style="display:none;position:absolute;top:0;left:0;width:100%;min-height:100%;background:rgba(0,0,0,0.45);z-index:200;padding-top:60px"
+             onclick="REVIEW.closeClarify(event)">
+          <div style="background:var(--white);border-radius:12px;padding:28px;width:100%;max-width:480px;margin:0 auto;position:relative" onclick="event.stopPropagation()">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+              <span style="font-weight:600;font-size:15px">Ask clarification</span>
+              <button onclick="REVIEW.closeClarify()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text-muted);line-height:1">×</button>
+            </div>
+            <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.05em">Buyer</div>
+            <div id="clarify-modal-buyer" style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:12px"></div>
+            <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.05em">Raw message</div>
+            <div id="clarify-modal-raw" style="font-size:12px;font-style:italic;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-bottom:14px;color:var(--text)"></div>
+            <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.05em">WhatsApp message</div>
+            <textarea id="clarify-modal-textarea"
+              style="width:100%;min-height:160px;border:1px solid var(--border);border-radius:8px;padding:10px;font-size:13px;line-height:1.6;font-family:inherit;resize:vertical;color:var(--text);outline:none"></textarea>
+            <div style="display:flex;gap:8px;margin-top:14px">
+              <button id="clarify-modal-phone" data-phone=""
+                class="btn btn-secondary" style="font-size:12px"
+                onclick="navigator.clipboard.writeText(document.getElementById('clarify-modal-textarea').value);this.textContent='Copied ✓';setTimeout(()=>this.textContent='Copy message',1500)">
+                Copy message
+              </button>
+              <button class="btn btn-primary" style="font-size:12px"
+                onclick="window.open('https://wa.me/'+document.getElementById('clarify-modal-phone').dataset.phone+'?text='+encodeURIComponent(document.getElementById('clarify-modal-textarea').value),'_blank')">
+                Send via WhatsApp
+              </button>
+            </div>
+          </div>
+        </div>
+
         <!-- Needs review card -->
         <div class="card" style="margin-bottom:20px">
           <div class="card-header">
@@ -1255,6 +1284,7 @@
             <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
               <button class="btn btn-primary" style="font-size:12px;padding:5px 12px" onclick="REVIEW.approve(${i})">Approve</button>
               <button class="btn btn-secondary" style="font-size:12px;padding:5px 12px" onclick="REVIEW.openEdit(${i})">Edit</button>
+              <button class="btn btn-secondary" style="font-size:12px;padding:5px 12px" onclick="REVIEW.openClarify(${i})">Ask clarification</button>
             </div>
           </div>
         `).join('');
@@ -1271,6 +1301,23 @@
         document.getElementById('review-modal-raw').textContent   = item.raw_message;
         document.getElementById('review-modal-input').value       = item.parser_guess;
         document.getElementById('review-modal-backdrop').style.display = 'block';
+      },
+
+      openClarify(i) {
+        const item = this.items[i];
+        const phone = item.phone.replace(/\D/g, '');
+        const message = `Hi ${item.buyer}, we received your order:\n\n"${item.raw_message}"\n\nWe're having trouble confirming your full order. Could you please clarify:\n${item.parser_guess.split(',').map(p => p.includes('?') ? `- Quantity for ${p.trim().replace(' x ?','')}?` : '').filter(Boolean).join('\n') || '- Could you confirm the exact quantities?'}\n\nReply with the exact quantities and we'll lock in your order. Thanks!`;
+        document.getElementById('clarify-modal-buyer').textContent    = item.buyer;
+        document.getElementById('clarify-modal-raw').textContent      = item.raw_message;
+        document.getElementById('clarify-modal-textarea').value       = message;
+        document.getElementById('clarify-modal-phone').dataset.phone  = phone;
+        document.getElementById('clarify-modal-backdrop').style.display = 'block';
+      },
+
+      closeClarify(e) {
+        if (!e || e.target === document.getElementById('clarify-modal-backdrop')) {
+          document.getElementById('clarify-modal-backdrop').style.display = 'none';
+        }
       },
 
       closeModal(e) {
