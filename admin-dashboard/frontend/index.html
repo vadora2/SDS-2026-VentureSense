@@ -1439,14 +1439,70 @@
       },
 
       openClarify(i) {
-        const item = this.items[i];
+        const item  = this.items[i];
         const phone = item.phone.replace(/\D/g, '');
-        const message = `Hi ${item.buyer}, we received your order:\n\n"${item.raw_message}"\n\nWe're having trouble confirming your full order. Could you please clarify:\n${item.parser_guess.split(',').map(p => p.includes('?') ? `- Quantity for ${p.trim().replace(' x ?','')}?` : '').filter(Boolean).join('\n') || '- Could you confirm the exact quantities?'}\n\nReply with the exact quantities and we'll lock in your order. Thanks!`;
-        document.getElementById('clarify-modal-buyer').textContent    = item.buyer;
-        document.getElementById('clarify-modal-raw').textContent      = item.raw_message;
-        document.getElementById('clarify-modal-textarea').value       = message;
-        document.getElementById('clarify-modal-phone').dataset.phone  = phone;
-        document.getElementById('clarify-modal-phone').dataset.idx    = i;
+
+        let message;
+        const scenario = item.scenario || 1;
+
+        if (scenario === 1) {
+          const unclear = item.parser_guess
+            .split(',')
+            .filter(p => p.includes('?'))
+            .map(p => `- Quantity for ${p.trim().replace(/\s*x\s*\?/i, '')}?`)
+            .join('\n') || '- Could you confirm the exact quantities?';
+          message =
+`Hi ${item.buyer}, we received your order:
+
+"${item.raw_message}"
+
+We were unable to confirm the full quantities. Could you clarify:
+${unclear}
+
+Please reply with the exact quantities (e.g. "2 Eggs and 1 Milk") and we'll lock in your order. Thanks!`;
+
+        } else if (scenario === 2) {
+          message =
+`Hi ${item.buyer}, it looks like we already have a confirmed order from you:
+
+Confirmed: ${item.parser_guess}
+
+We received another message that looks like a duplicate. If this was a mistake, no action needed — your original order stands.
+
+If you meant to change your order, please reply with your updated items and we'll check with our team. Thanks!`;
+
+        } else if (scenario === 3) {
+          message =
+`Hi ${item.buyer}, we received your amendment request:
+
+"${item.raw_message}"
+
+Your order was already confirmed. Amendments after confirmation need admin approval and may not be possible if the round is closing soon.
+
+We'll review and get back to you shortly. Thanks for your patience!`;
+
+        } else if (scenario === 4) {
+          message =
+`Hi ${item.buyer}, thanks for your interest in our group buy!
+
+Unfortunately, the order window closed at 10 PM and we received your message after the cutoff.
+
+We'll check if we're able to add a late order and get back to you. Otherwise, look out for our next group buy round! 🌿`;
+
+        } else {
+          message =
+`Hi ${item.buyer}, we received your order:
+
+"${item.raw_message}"
+
+We need a bit more information to confirm your order. Could you please clarify the details and we'll get back to you shortly. Thanks!`;
+        }
+
+        document.getElementById('clarify-modal-buyer').textContent   = item.buyer;
+        document.getElementById('clarify-modal-raw').textContent     = item.raw_message;
+        document.getElementById('clarify-modal-textarea').value      = message;
+        document.getElementById('clarify-modal-phone').dataset.phone = phone;
+        document.getElementById('clarify-modal-phone').dataset.idx   = i;
         document.getElementById('clarify-modal-backdrop').style.display = 'block';
       },
 
