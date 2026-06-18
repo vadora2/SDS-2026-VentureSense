@@ -1254,43 +1254,76 @@
           phone: '+65 9123 4567',
           raw_message: '2 eggs, and the usual milk pls',
           parser_guess: 'Eggs x 2, Milk x ?',
-          reason: "Quantity unclear: 'usual milk'",
-          status: 'pending'
+          reason: "Scenario 1 — Quantity unclear: 'usual milk'",
+          status: 'pending',
+          scenario: 1
         },
         {
           buyer: 'Priya N.',
           phone: '+65 8234 5678',
           raw_message: 'can i get 3 of the rice and some tofu',
           parser_guess: 'Brown rice x 3, Tofu x ?',
-          reason: "Quantity unclear: 'some tofu'",
+          reason: "Scenario 1 — Quantity unclear: 'some tofu'",
           status: 'clarifying',
-          clarifying_since: '10 mins ago'
+          clarifying_since: '10 mins ago',
+          scenario: 1
         },
         {
           buyer: 'Daniel Wong',
           phone: '+65 9345 6789',
           raw_message: '1 oat milk 2 eggs',
           parser_guess: 'Eggs x 2, Oat milk x 1',
-          reason: "Ambiguous SKU: 'oat milk' not in catalogue (closest: Milk)",
-          status: 'pending'
+          reason: "Scenario 1 — Ambiguous SKU: 'oat milk' not in catalogue (closest: Milk)",
+          status: 'pending',
+          scenario: 1
         },
         {
           buyer: 'Wei Ling Tan',
           phone: '+65 9456 7890',
           raw_message: 'i want the usual stuff',
           parser_guess: '?',
-          reason: "Order too vague to parse",
+          reason: "Scenario 1 — Order too vague to parse",
           status: 'clarifying',
-          clarifying_since: '2 mins ago'
+          clarifying_since: '2 mins ago',
+          scenario: 1
         },
         {
           buyer: 'Amirul B.',
           phone: '+65 8567 8901',
           raw_message: 'eggs x3 n 2 milk',
           parser_guess: 'Eggs x 3, Milk x 2',
-          reason: "Resolved — buyer confirmed quantities",
+          reason: "Scenario 1 — Resolved — buyer confirmed quantities",
           status: 'resolved',
-          resolved_guess: 'Eggs x 3, Milk x 2'
+          resolved_guess: 'Eggs x 3, Milk x 2',
+          scenario: 1
+        },
+        {
+          buyer: 'Rachel Koh',
+          phone: '+65 9111 2222',
+          raw_message: 'CONFIRM',
+          parser_guess: 'Eggs x 2 (already confirmed)',
+          reason: "Scenario 2 — Duplicate order: buyer already confirmed Eggs x2. Blocking double-count.",
+          status: 'pending',
+          scenario: 2,
+          blocked: true
+        },
+        {
+          buyer: 'Hafiz M.',
+          phone: '+65 9222 3333',
+          raw_message: 'actl change to 3',
+          parser_guess: 'Eggs x 3 (amended from x2)',
+          reason: "Scenario 3 — Amendment conflict: order already confirmed. Admin must approve change.",
+          status: 'pending',
+          scenario: 3
+        },
+        {
+          buyer: 'Siti R.',
+          phone: '+65 9333 4444',
+          raw_message: 'can i order 2 eggs pls',
+          parser_guess: 'Eggs x 2',
+          reason: "Scenario 4 — Late order: round closed at 10 PM, message received at 10:05 PM.",
+          status: 'pending',
+          scenario: 4
         },
       ],
       editingIndex: null,
@@ -1340,7 +1373,7 @@
                   <button class="btn btn-secondary" style="font-size:12px;padding:5px 12px;opacity:1" onclick="REVIEW.simulateReply(${globalIdx})">Simulate reply</button>
                  </div>`
               : `<div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
-                  <button class="btn btn-primary" style="font-size:12px;padding:5px 12px" onclick="REVIEW.approve(${globalIdx})">Approve</button>
+                  <button class="btn btn-primary" style="font-size:12px;padding:5px 12px${item.blocked ? ';opacity:0.4;pointer-events:none' : ''}" onclick="REVIEW.approve(${globalIdx})" ${item.blocked ? 'disabled' : ''}>Approve</button>
                   <button class="btn btn-secondary" style="font-size:12px;padding:5px 12px" onclick="REVIEW.openEdit(${globalIdx})">Edit</button>
                   <button class="btn btn-secondary" style="font-size:12px;padding:5px 12px" onclick="REVIEW.openClarify(${globalIdx})">Ask clarification</button>
                  </div>`;
@@ -1360,6 +1393,8 @@
                 <div style="font-size:12px;font-style:italic;color:var(--text);margin-bottom:4px">"${item.raw_message}"</div>
                 ${parsedLine}
                 <span class="warn-tag">${item.reason}</span>
+                ${item.scenario ? `<span class="pill pill-gray" style="font-size:10px;margin-left:6px;margin-top:4px;display:inline-block">Failure scenario ${item.scenario}</span>` : ''}
+                ${item.blocked ? `<div style="font-size:11px;color:#991B1B;margin-top:6px;font-weight:600">⛔ Blocked — cannot approve until duplicate is resolved</div>` : ''}
               </div>
               ${actions}
             </div>`;
@@ -1763,6 +1798,19 @@
             <span style="font-size:13px;color:var(--text-muted)">Orders locked. Review discounts, then generate payment.</span>
           </div>
           <div style="margin-bottom:14px">${groupRows}</div>
+          <div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;padding:12px 14px;margin-bottom:14px">
+            <div style="font-size:12px;font-weight:600;color:#991B1B;margin-bottom:6px">⚠️ Scenario 5 — Stock issue detected</div>
+            <div style="font-size:12px;color:#7F1D1D;margin-bottom:8px">
+              <strong>Apples</strong> marked unavailable by admin — affects 2 orders (Rachel Koh, Hafiz M.).
+              Resolve before generating payment links.
+            </div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-secondary" style="font-size:12px;padding:5px 12px;border-color:#FECACA;color:#991B1B"
+                onclick="this.closest('div[style*=FEF2F2]').innerHTML='<div style=\'font-size:12px;color:#065F46;font-weight:600\'>✓ Buyers notified — substitute or refund selected before payment.</div>'">
+                Notify affected buyers
+              </button>
+            </div>
+          </div>
           <div style="display:flex;gap:8px;margin-top:14px">
             <button class="btn btn-primary" onclick="ROUND_STATE='payment_sent';renderRound();renderDashboard()">Generate payment links</button>
             <button class="btn btn-secondary" onclick="ROUND_STATE='open';renderRound();renderDashboard()">Reopen round</button>
