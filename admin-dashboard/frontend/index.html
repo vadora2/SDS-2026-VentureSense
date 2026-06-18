@@ -1055,6 +1055,7 @@
   <script>
     // ── Global state ──────────────────────────────────────────────
     let ORDERS = [];
+    let ROUND_STATE = 'open';
 
     // ── Page titles ───────────────────────────────────────────────
     const PAGE_TITLES = {
@@ -1175,6 +1176,45 @@
           <span class="pill pill-amber">All unpaid</span>
         </div>
       `).join('') || '<div class="group-row"><div class="group-id" style="color:var(--text-muted)">No data</div></div>';
+
+      renderCadence();
+    }
+
+    function computeCadenceSteps() {
+      const s = ['pending', 'pending', 'pending', 'pending', 'pending', 'pending'];
+
+      if (ROUND_STATE === 'open') {
+        s[0] = 'active';
+      } else if (ROUND_STATE === 'closed') {
+        s[0] = 'done'; s[1] = 'done'; s[2] = 'active';
+      } else if (ROUND_STATE === 'payment_sent') {
+        s[0] = 'done'; s[1] = 'done'; s[2] = 'done'; s[3] = 'active';
+      }
+
+      const anyPacked      = ORDERS.some(o => ['packed','collected','delivered'].includes(o.fulfillment_status));
+      const allPacked      = ORDERS.length > 0 && ORDERS.every(o => ['packed','collected','delivered'].includes(o.fulfillment_status));
+      const anyCollected   = ORDERS.some(o => ['collected','delivered'].includes(o.fulfillment_status));
+      const allDelivered   = ORDERS.length > 0 && ORDERS.every(o => o.fulfillment_status === 'delivered');
+
+      if (anyPacked)    s[4] = allPacked    ? 'done' : 'active';
+      if (anyCollected) s[5] = allDelivered ? 'done' : 'active';
+
+      return s;
+    }
+
+    function renderCadence() {
+      const states = computeCadenceSteps();
+      const steps  = document.querySelectorAll('.cadence-steps .cadence-step');
+      const lines  = document.querySelectorAll('.cadence-steps .cadence-line');
+      steps.forEach((el, i) => {
+        el.classList.remove('done', 'active', 'pending');
+        el.classList.add(states[i]);
+        const dot = el.querySelector('.cs-dot');
+        if (dot) dot.textContent = states[i] === 'done' ? '✓' : String(i + 1);
+      });
+      lines.forEach((el, i) => {
+        el.classList.toggle('done', states[i] === 'done');
+      });
     }
 
     // ── Ambiguous order review queue ──────────────────────────────
@@ -1532,8 +1572,6 @@
     }
 
     // ── Transactions ──────────────────────────────────────────────
-    let ROUND_STATE = 'open';
-
     function renderRound() {
       const body    = document.getElementById('round-body');
       if (!body) return;
@@ -1556,7 +1594,7 @@
             ${ORDERS.length} orders · ${units} units · $${total.toFixed(2)}
           </div>
           <div style="display:flex;gap:8px">
-            <button class="btn btn-primary" onclick="ROUND_STATE='closed';renderRound()">Close round</button>
+            <button class="btn btn-primary" onclick="ROUND_STATE='closed';renderRound();renderDashboard()">Close round</button>
           </div>`;
 
       } else if (ROUND_STATE === 'closed') {
@@ -1578,8 +1616,8 @@
           </div>
           <div style="margin-bottom:14px">${groupRows}</div>
           <div style="display:flex;gap:8px;margin-top:14px">
-            <button class="btn btn-primary" onclick="ROUND_STATE='payment_sent';renderRound()">Generate payment links</button>
-            <button class="btn btn-secondary" onclick="ROUND_STATE='open';renderRound()">Reopen round</button>
+            <button class="btn btn-primary" onclick="ROUND_STATE='payment_sent';renderRound();renderDashboard()">Generate payment links</button>
+            <button class="btn btn-secondary" onclick="ROUND_STATE='open';renderRound();renderDashboard()">Reopen round</button>
           </div>`;
 
       } else if (ROUND_STATE === 'payment_sent') {
@@ -1593,7 +1631,7 @@
           </div>
           <div style="display:flex;gap:8px">
             <button class="btn btn-primary" onclick="roundDownloadPaymentCSV()">Download payment CSV</button>
-            <button class="btn btn-secondary" onclick="ROUND_STATE='open';renderRound()">Reset round</button>
+            <button class="btn btn-secondary" onclick="ROUND_STATE='open';renderRound();renderDashboard()">Reset round</button>
           </div>`;
       }
     }
