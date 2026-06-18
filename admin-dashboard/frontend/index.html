@@ -823,7 +823,7 @@
                 Copy message
               </button>
               <button class="btn btn-primary" style="font-size:12px"
-                onclick="window.open('https://wa.me/'+document.getElementById('clarify-modal-phone').dataset.phone+'?text='+encodeURIComponent(document.getElementById('clarify-modal-textarea').value),'_blank');REVIEW.items[parseInt(document.getElementById('clarify-modal-phone').dataset.idx)].status='clarifying';REVIEW.items[parseInt(document.getElementById('clarify-modal-phone').dataset.idx)].clarifying_since='just now';document.getElementById('clarify-modal-backdrop').style.display='none';REVIEW.render()">
+                onclick="const idx=parseInt(document.getElementById('clarify-modal-phone').dataset.idx);REVIEW.items[idx].status='clarifying';REVIEW.items[idx].clarifying_since='just now';document.getElementById('clarify-modal-backdrop').style.display='none';REVIEW.render();alert('Message sent via WhatsApp!')">
                 Send via WhatsApp
               </button>
             </div>
