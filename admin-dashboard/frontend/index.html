@@ -635,6 +635,13 @@
         </svg>
         Order Management
       </a>
+      <a href="#" class="nav-link" data-page="fulfilment">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
+          <path d="M3.27 6.96L12 12.01l8.73-5.05M12 22.08V12"/>
+        </svg>
+        Fulfilment
+      </a>
       <a href="#" class="nav-link" data-page="transactions">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="12" y1="1" x2="12" y2="23"/>
@@ -1007,6 +1014,35 @@
           </div>
         </div>
       </div>
+
+      <div id="page-fulfilment" class="page">
+        <div class="metric-row" id="ful-metrics"></div>
+        <div class="card">
+          <div class="card-header">
+            <h3>Packing &amp; delivery</h3>
+            <span id="ful-count-label"></span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Order</th>
+                <th>Buyer</th>
+                <th>Items</th>
+                <th>Slot</th>
+                <th>Status</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="ful-tbody"></tbody>
+          </table>
+          <div class="data-footer">
+            <span class="warn-tag">delivery_address</span>
+            <span class="warn-tag">slot</span>
+            — not in CSV export; shown as placeholder.
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -1019,6 +1055,7 @@
       dashboard:    'Dashboard',
       setup:        'Group Buys',
       orders:       'Order Management',
+      fulfilment:   'Fulfilment',
       transactions: 'Transactions',
     };
 
@@ -1431,6 +1468,63 @@
 
     SETUP.renderTable();
 
+    // ── Fulfilment ────────────────────────────────────────────────
+    const FUL_STAGES = ['not_packed', 'packed', 'collected', 'delivered'];
+    const FUL_LABELS = { not_packed: 'Not packed', packed: 'Packed', collected: 'Collected', delivered: 'Delivered' };
+    const FUL_NEXT_LABEL = { not_packed: 'Mark packed', packed: 'Mark collected', collected: 'Mark delivered' };
+    const FUL_PILL = {
+      not_packed: '<span class="pill pill-gray">Not packed</span>',
+      packed:     '<span class="pill pill-blue">Packed</span>',
+      collected:  '<span class="pill pill-amber">Collected</span>',
+      delivered:  '<span class="pill pill-green">Delivered</span>',
+    };
+
+    function fulStage(o) {
+      return FUL_STAGES.includes(o.fulfillment_status) ? o.fulfillment_status : 'not_packed';
+    }
+
+    function renderFulfilment() {
+      const counts = { not_packed: 0, packed: 0, collected: 0, delivered: 0 };
+      ORDERS.forEach(o => counts[fulStage(o)]++);
+
+      document.getElementById('ful-metrics').innerHTML = FUL_STAGES.map(s => {
+        const isAmber = s === 'not_packed' && counts[s] > 0;
+        return `<div class="metric-card${isAmber ? ' amber' : ''}">
+          <div class="mc-label">${FUL_LABELS[s]}</div>
+          <div class="mc-value">${counts[s]}</div>
+        </div>`;
+      }).join('');
+
+      document.getElementById('ful-count-label').textContent = ORDERS.length + ' orders';
+
+      document.getElementById('ful-tbody').innerHTML = ORDERS.map((o, i) => {
+        const status   = fulStage(o);
+        const initials = omInitials(o.buyer_name);
+        const items    = o.items || '—';
+        const shortId  = (o.order_id || '').slice(-6);
+        const action   = status === 'delivered'
+          ? '<span style="color:var(--text-muted);font-size:12px">Complete ✓</span>'
+          : `<button class="btn btn-primary" style="font-size:12px;padding:5px 12px" onclick="fulAdvance(${i})">${FUL_NEXT_LABEL[status]}</button>`;
+        return `<tr>
+          <td class="order-id-cell">${shortId}</td>
+          <td class="buyer-cell"><span class="avatar">${initials}</span>${o.buyer_name || '—'}</td>
+          <td class="cell-items" title="${items}">${items}</td>
+          <td style="color:var(--text-muted)">—</td>
+          <td>${FUL_PILL[status]}</td>
+          <td>${action}</td>
+        </tr>`;
+      }).join('') || `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px">No orders</td></tr>`;
+    }
+
+    function fulAdvance(i) {
+      const current = fulStage(ORDERS[i]);
+      const nextIdx = FUL_STAGES.indexOf(current) + 1;
+      if (nextIdx < FUL_STAGES.length) {
+        ORDERS[i].fulfillment_status = FUL_STAGES[nextIdx];
+        renderFulfilment();
+      }
+    }
+
     // ── Transactions ──────────────────────────────────────────────
     function renderTransactions() {
       const total   = ORDERS.reduce((s, o) => s + (parseFloat(o.subtotal) || 0), 0);
@@ -1502,6 +1596,7 @@
         updateTopbarMeta();
         renderDashboard();
         renderOrderManagement();
+        renderFulfilment();
         renderTransactions();
         document.getElementById('loading-overlay').classList.add('hidden');
       },
